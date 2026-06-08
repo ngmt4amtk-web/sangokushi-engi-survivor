@@ -10,6 +10,7 @@ function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className
 function stars(r){return '★'.repeat(r);}
 function fmtT(s){s=Math.floor(s);return (Math.floor(s/60))+':'+String(s%60).padStart(2,'0');}
 function genById(id){return window.GENERALS.find(g=>g.id===id);}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 
 // ── 武器SVGアイコン要素 ─────────────────────
 function wiconEl(weaponKey,cls){ const d=el('div','wsvg'+(cls?' '+cls:'')); d.innerHTML=window.weaponIconSvg(weaponKey); return d; }
@@ -367,10 +368,11 @@ function openDetail(g){
       </div>
     </div>
     <div style="margin-top:10px;font-size:13px;"><b style="color:var(--gold2)">${g.skill}</b> ─ ${g.skillDesc}</div>
-    ${g.bio?`<div class="lore">${g.bio}</div>`:''}
+    ${g.bio?`<div class="bio-tag">${g.bio}</div>`:''}
     ${g.chapN?`<div style="font-size:12px;color:var(--txt2);margin:6px 0;line-height:1.55;">演義での登場：全 <b style="color:var(--gold2)">${g.chapN}</b> 回　主な舞台 ${(g.chapters||[]).map(n=>'第'+n+'回').join('・')}</div>`:''}
+    ${g.profile?`<div class="profile">${esc(g.profile).split(/\n\s*\n/).map(p=>'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('')}</div>`:''}
     <div class="dscore">${bars}</div>
-    <div style="font-size:12px;color:var(--txt2)">集約：腕W <b>${g.scores.W}</b> / 戦場B <b>${g.scores.B}</b> / 戦略S <b>${g.scores.S}</b>${g.scores.G?` / 政G <b>${g.scores.G}</b>`:''}</div>
+    <div style="font-size:12px;color:var(--txt2)">演義評価：腕W <b>${g.scores.W}</b> / 戦場B <b>${g.scores.B}</b> / 戦略S <b>${g.scores.S}</b>${g.scores.G?` / 政G <b>${g.scores.G}</b>`:''}</div>
     ${g.voice?`<div class="voice">「${g.voice}」</div>`:''}
     <button class="btn" id="m-close" style="margin-top:16px">閉じる</button>`;
   $('#modal').classList.add('show');
