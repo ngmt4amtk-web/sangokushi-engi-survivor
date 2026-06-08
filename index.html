@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d0b10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0b10'/%3E%3Ctext x='8' y='13' font-size='13' text-anchor='middle' fill='%23e8c060'%3E三%3C/text%3E%3C/svg%3E">
+<title>三国志演義 survivor</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="xp-wrap"><div id="xpbar"></div></div>
+  <div class="hp-wrap"><div class="hp-bg"><div id="hpbar"></div></div><div class="hp-txt" id="hptxt">100 / 100</div></div>
+  <div id="lvline">Lv <b>1</b></div>
+  <div id="topinfo">0:00<small>―</small></div>
+  <div id="statline">☠ 0　軍功 <b>0</b></div>
+  <div id="bossbar"><div class="bn" id="bossname"></div><div class="bg"><div id="bosshp"></div></div></div>
+  <div id="wlist"></div>
+  <div id="kizunaline"></div>
+</div>
+<button id="pausebtn" class="btn">⏸</button>
+
+<!-- ボストースト -->
+<div id="bosstoast" class="over" style="background:rgba(5,3,8,.4);justify-content:flex-start;padding-top:20vh;"></div>
+
+<!-- レベルアップ -->
+<div id="levelup" class="over">
+  <h2>⬆ レベルアップ</h2>
+  <div class="hint">武将（武器）か兵法を選べ</div>
+  <div class="choices" id="lvchoices"></div>
+  <div class="lvbtns" id="lvbtns"></div>
+</div>
+
+<!-- 結果 -->
+<div id="result" class="over"><div id="resultbox" style="display:flex;flex-direction:column;align-items:center;"></div></div>
+
+<!-- ポーズ -->
+<div id="pause" class="over">
+  <h2>一時停止</h2>
+  <div class="row" style="max-width:320px;width:100%;margin-top:10px;">
+    <button class="btn primary" id="p-resume">再開</button>
+    <button class="btn" id="p-quit">中断してメニュー</button>
+  </div>
+</div>
+
+<!-- 武将詳細モーダル -->
+<div id="modal" class="modal"><div class="sheet" id="modalbox"></div></div>
+
+<!-- ガチャ演出 -->
+<div id="gachaFx"><div id="gachabox" style="display:flex;flex-direction:column;align-items:center;width:100%;"></div></div>
+
+<!-- スクリーン -->
+<div id="s-title" class="screen"><div class="wrap content"></div></div>
+<div id="s-stage" class="screen"><button class="btn back">← 戻る</button><div class="wrap content"></div></div>
+<div id="s-lord" class="screen"><div class="wrap content"></div></div>
+<div id="s-story" class="screen"><div class="wrap content"></div></div>
+<div id="s-gacha" class="screen"><button class="btn back">← 戻る</button><div class="wrap content"></div></div>
+<div id="s-codex" class="screen"><button class="btn back">← 戻る</button><div class="wrap content"></div></div>
+
+<!-- データ -->
+<script src="js/data/generals.js"></script>
+<script src="js/data/weapons.js"></script>
+<script src="js/data/weapon_icons.js"></script>
+<script src="js/data/passives.js"></script>
+<script src="js/data/lords.js"></script>
+<script src="js/data/evolutions.js"></script>
+<script src="js/data/enemy_arch.js"></script>
+<script src="js/data/stages.js"></script>
+<script src="js/data/gacha.js"></script>
+<script src="js/data/kizuna.js"></script>
+<!-- エンジン -->
+<script src="js/engine/sprites.js"></script>
+<script src="js/engine/runtime.js"></script>
+<script src="js/engine/weapons.js"></script>
+<!-- UI -->
+<script src="js/ui/save.js"></script>
+<script src="js/ui/screens.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

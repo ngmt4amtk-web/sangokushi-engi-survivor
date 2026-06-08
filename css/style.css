@@ -1,0 +1,208 @@
+:root{
+  --ink:#0d0b10; --ink2:#16121c; --panel:#1d1726; --panel2:#241c30;
+  --gold:#e8c060; --gold2:#ffe08a; --red:#c0392b; --redL:#e2403a;
+  --txt:#efe6da; --txt2:#b7ab9b; --line:#3a2f48;
+  --ur:#ff4081; --ssr:#ffd54f; --sr:#ba68c8; --r:#4fc3f7; --n:#b0bec5;
+  --f0:#e2403a; --f1:#3f7fd0; --f2:#3aa856; --f3:#9a8c7a;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--txt);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;overflow:hidden;user-select:none;}
+#game{position:fixed;inset:0;display:block;touch-action:none;}
+button{font-family:inherit;cursor:pointer;}
+
+/* スクリーン共通 */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;z-index:10;
+  background:radial-gradient(120% 90% at 50% 0%,var(--ink2),var(--ink));overflow-y:auto;}
+.screen.show{display:flex;}
+.wrap{max-width:880px;margin:0 auto;width:100%;padding:18px 16px 90px;}
+.title-jp{font-size:13px;letter-spacing:.4em;color:var(--gold);text-align:center;}
+h1.logo{font-size:clamp(30px,8vw,58px);text-align:center;margin:6px 0 2px;
+  background:linear-gradient(180deg,var(--gold2),var(--gold) 55%,#9a6a20);-webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 2px 0 rgba(0,0,0,.4);font-weight:900;letter-spacing:.05em;}
+.sub{text-align:center;color:var(--txt2);font-size:13px;margin-bottom:18px;}
+
+.btn{display:block;width:100%;padding:15px;margin:9px 0;border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));color:var(--txt);font-size:16px;font-weight:700;
+  transition:.12s;position:relative;}
+.btn:hover{border-color:var(--gold);transform:translateY(-1px);}
+.btn:active{transform:translateY(1px);}
+.btn.primary{background:linear-gradient(180deg,#d6483c,#a3271d);border-color:#e87;color:#fff;}
+.btn.gold{background:linear-gradient(180deg,#f0cf6e,#bb8e2a);border-color:#ffe9ad;color:#2a1d05;}
+.btn small{display:block;font-weight:400;color:var(--txt2);font-size:11px;margin-top:3px;}
+.btn.primary small,.btn.gold small{color:rgba(255,255,255,.8);}
+.btn.gold small{color:#5a4205;}
+.row{display:flex;gap:10px;}.row>*{flex:1;}
+.back{position:fixed;top:12px;left:12px;z-index:20;width:auto;padding:9px 16px;margin:0;font-size:14px;}
+/* 固定戻るボタンと被らないよう、固定backを持つ画面のtopbarを下げる */
+#s-stage .wrap, #s-codex .wrap, #s-gacha .wrap{padding-top:58px;}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.curr{display:flex;gap:14px;align-items:center;font-weight:700;}
+.curr .pill{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:6px 13px;font-size:14px;}
+.curr .pill b{color:var(--gold2);}
+
+h2.sec{font-size:15px;color:var(--gold);border-left:3px solid var(--gold);padding-left:9px;margin:20px 0 10px;letter-spacing:.05em;}
+
+/* 君主/ステージ カード */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px;}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:13px;
+  padding:12px;transition:.12s;position:relative;overflow:hidden;}
+.card:hover{border-color:var(--gold);transform:translateY(-2px);}
+.card.locked{opacity:.45;filter:grayscale(.6);}
+.card .nm{font-weight:800;font-size:17px;}
+.card .tt{color:var(--txt2);font-size:12px;margin:2px 0 8px;}
+.card .desc{font-size:12px;color:var(--txt2);line-height:1.5;}
+.fac-chip{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:700;color:#fff;}
+.f0{background:var(--f0);}.f1{background:var(--f1);}.f2{background:var(--f2);}.f3{background:var(--f3);color:#1a1a1a;}
+
+/* 図鑑グリッド */
+.dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;}
+.cell{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:7px 5px;text-align:center;position:relative;transition:.1s;}
+.cell:hover{transform:scale(1.05);}
+.cell .av{width:54px;height:54px;margin:0 auto;image-rendering:pixelated;border-radius:7px;background:#0c0a10;}
+.cell .cn{font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cell .stars{font-size:9px;letter-spacing:-1px;}
+.cell.locked .av{filter:brightness(.25);}
+.cell.locked .cn{color:var(--txt2);}
+.cell .dup{position:absolute;top:-6px;right:-6px;background:var(--gold);color:#2a1d05;font-size:10px;font-weight:800;border-radius:9px;padding:1px 5px;}
+.r5{border-color:var(--ur);} .r4{border-color:var(--ssr);} .r3{border-color:var(--sr);} .r2{border-color:var(--r);} .r1{border-color:var(--n);}
+.txt-r5{color:var(--ur);}.txt-r4{color:var(--ssr);}.txt-r3{color:var(--sr);}.txt-r2{color:var(--r);}.txt-r1{color:var(--n);}
+
+/* モーダル(武将詳細/ガチャ結果) */
+.modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;padding:18px;}
+.modal.show{display:flex;}
+.sheet{background:linear-gradient(180deg,var(--panel2),var(--ink2));border:1px solid var(--gold);border-radius:16px;
+  max-width:460px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;}
+.sheet h3{margin:0 0 2px;font-size:24px;}
+.dscore{display:grid;grid-template-columns:auto 1fr auto;gap:5px 9px;align-items:center;font-size:12px;margin:10px 0;}
+.dbar{height:9px;background:#0c0a10;border-radius:5px;overflow:hidden;}
+.dbar i{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--gold));}
+.lore{font-size:13px;line-height:1.7;color:var(--txt2);margin-top:6px;border-top:1px solid var(--line);padding-top:10px;}
+.voice{font-style:italic;color:var(--gold2);font-size:13px;margin-top:8px;}
+
+/* ── HUD(プレイ中) ── */
+#hud{position:fixed;inset:0;z-index:5;pointer-events:none;display:none;}
+#hud.show{display:block;}
+.hp-wrap,.xp-wrap{position:absolute;left:0;right:0;}
+.xp-wrap{top:0;height:7px;background:#0c0a10;}
+#xpbar{height:100%;background:linear-gradient(90deg,#4fc3f7,#81d4fa);width:0;transition:width .1s;}
+.hp-wrap{top:9px;left:12px;right:12px;display:flex;align-items:center;gap:8px;}
+.hp-bg{flex:1;height:16px;background:#0c0a10;border:1px solid #000;border-radius:8px;overflow:hidden;}
+#hpbar{height:100%;background:linear-gradient(90deg,#c0392b,#e2403a);width:100%;transition:width .12s;}
+.hp-txt{font-size:12px;font-weight:700;min-width:74px;}
+#topinfo{position:absolute;top:30px;left:0;right:0;text-align:center;font-weight:800;font-size:22px;text-shadow:0 1px 3px #000;}
+#topinfo small{display:block;font-size:11px;color:var(--txt2);font-weight:400;}
+#statline{position:absolute;top:30px;right:12px;text-align:right;font-size:12px;color:var(--txt2);font-weight:700;}
+#statline b{color:var(--gold2);}
+#lvline{position:absolute;top:30px;left:12px;font-size:12px;color:var(--txt2);font-weight:700;}
+#wlist{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 10px;}
+.wico{width:40px;height:40px;background:var(--panel);border:2px solid var(--line);border-radius:8px;position:relative;image-rendering:pixelated;overflow:hidden;}
+.wico canvas{width:100%;height:100%;image-rendering:pixelated;}
+.wico .lv{position:absolute;bottom:-2px;right:-1px;font-size:9px;font-weight:800;color:var(--gold2);text-shadow:0 0 3px #000;}
+.wico.evo{border-color:var(--gold);box-shadow:0 0 8px var(--gold);}
+.wico.fused{border-color:#ffd54f;box-shadow:0 0 12px #ffd54f;background:linear-gradient(160deg,#3a2c10,var(--panel));}
+.wico.fused .lv{color:#ffe082;font-size:12px;}
+/* 発動中の縁タグ(HUD・武器アイコン列の上) */
+#kizunaline{position:absolute;bottom:54px;left:0;right:0;display:flex;justify-content:center;gap:5px;flex-wrap:wrap;padding:0 10px;pointer-events:none;}
+.kztag{font-size:10px;font-weight:700;color:#ffd54f;background:rgba(58,44,16,.72);border:1px solid rgba(255,213,79,.45);border-radius:9px;padding:1px 8px;}
+/* ボス紹介は文字表示のみ。タッチ入力を食って操作不能で死ぬ事故を防ぐため貫通させる */
+#bosstoast{pointer-events:none;}
+/* 君主のシグネチャ(尖った固有能力)表示 */
+.lord-sig{margin-top:7px;color:#ffd54f !important;font-weight:700;border-top:1px dashed rgba(255,213,79,.3);padding-top:6px;}
+#bossbar{position:absolute;top:54px;left:50%;transform:translateX(-50%);width:min(560px,86%);display:none;}
+#bossbar.show{display:block;}
+#bossbar .bn{text-align:center;font-size:13px;font-weight:800;color:var(--redL);text-shadow:0 1px 2px #000;}
+#bossbar .bg{height:12px;background:#0c0a10;border:1px solid #000;border-radius:7px;overflow:hidden;margin-top:2px;}
+#bosshp{height:100%;background:linear-gradient(90deg,#7a1410,#ff5252);width:100%;}
+#pausebtn{position:fixed;top:8px;right:8px;z-index:6;pointer-events:auto;width:auto;margin:0;padding:6px 12px;font-size:13px;}
+
+/* レベルアップ/結果 オーバーレイ */
+.over{position:fixed;inset:0;z-index:40;background:rgba(5,3,8,.86);display:none;flex-direction:column;align-items:center;justify-content:center;padding:18px;}
+.over.show{display:flex;}
+.over h2{font-size:24px;color:var(--gold);margin:0 0 4px;}
+.over .hint{color:var(--txt2);font-size:13px;margin-bottom:16px;}
+/* レベルアップ: 縦に積む横並びカード(モバイルで崩れないよう全幅・はみ出したらスクロール) */
+#levelup{justify-content:flex-start;padding-top:max(16px,4vh);overflow-y:auto;}
+.choices{display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px;}
+.choice{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));border:2px solid var(--line);border-radius:12px;
+  padding:10px 12px;transition:.12s;pointer-events:auto;}
+.choice:hover{border-color:var(--gold);box-shadow:0 4px 16px rgba(0,0,0,.5);}
+.choice:active{transform:scale(.985);}
+.choice .ci{flex:0 0 52px;width:52px;height:52px;margin:0;image-rendering:pixelated;border-radius:8px;background:#0c0a10;}
+.choice .ci-emoji{font-size:30px;line-height:52px;text-align:center;}
+.choice .cinfo{flex:1 1 auto;min-width:0;}
+.choice .crow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.choice .ct{font-size:11px;color:var(--gold2);font-weight:700;margin-top:1px;}
+.choice .cnm{font-size:17px;font-weight:800;margin:0;}
+.choice .cd{font-size:11.5px;color:var(--txt2);line-height:1.4;margin-top:2px;}
+.choice .tag{display:inline-block;font-size:10px;padding:1px 8px;border-radius:9px;background:var(--line);font-weight:700;flex:0 0 auto;}
+/* 引き直し / スキップ */
+.lvbtns{display:flex;gap:12px;margin-top:14px;flex:0 0 auto;}
+.lvbtn{padding:9px 18px;font-size:14px;font-weight:700;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:var(--txt);pointer-events:auto;cursor:pointer;}
+.lvbtn:hover{border-color:var(--gold);}
+.lvbtn.disabled{opacity:.4;pointer-events:none;}
+/* 進化ヒント(武将=どの兵法で進化 / 兵法=どの系統が進化) */
+.choice .evohint{margin-top:7px;font-size:10.5px;line-height:1.4;color:var(--txt2);border-top:1px dashed var(--line);padding-top:6px;opacity:.85;}
+.choice .evohint.near{color:var(--gold2);opacity:1;}
+.choice .evohint.ready{color:var(--gold);font-weight:700;opacity:1;}
+.choice .evohint.done{color:#7CFC8A;font-weight:700;opacity:1;}
+
+.res-stat{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;max-width:360px;margin:14px 0;font-size:15px;}
+.res-stat .k{color:var(--txt2);}.res-stat .v{text-align:right;font-weight:800;color:var(--gold2);}
+
+/* ガチャ演出 */
+#gachaFx{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;flex-direction:column;background:#000;}
+#gachaFx.show{display:flex;}
+.pull-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:520px;width:100%;padding:16px;}
+.pull{aspect-ratio:3/4;border:2px solid var(--line);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--panel);opacity:0;transform:scale(.6);animation:pop .4s forwards;}
+@keyframes pop{to{opacity:1;transform:scale(1);}}
+.pull canvas{width:70%;image-rendering:pixelated;}
+.pull .pn{font-size:11px;font-weight:700;margin-top:4px;}
+.pull.NEW::after{content:'NEW';position:absolute;}
+.tap-hint{color:var(--txt2);margin-top:14px;font-size:13px;}
+
+.note{font-size:12px;color:var(--txt2);line-height:1.6;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px;margin-top:8px;}
+a.link{color:var(--gold2);}
+.kbd{display:inline-block;background:#000;border:1px solid var(--line);border-radius:5px;padding:1px 7px;font-size:12px;font-family:ui-monospace,monospace;}
+
+/* ── 演義版 追加スタイル ───────────────────── */
+/* ステージ選択(120) */
+.stage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+.scard{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:11px 12px;cursor:pointer;transition:.12s;position:relative;overflow:hidden;}
+.scard:hover{border-color:var(--gold);transform:translateY(-2px);}
+.scard.locked{opacity:.42;filter:grayscale(.6);cursor:default;}
+.scard.cleared{border-color:rgba(232,192,96,.5);}
+.scard .sno{font-size:11px;color:var(--txt2);font-weight:700;}
+.scard .snm{font-weight:800;font-size:16px;margin:1px 0;line-height:1.25;}
+.scard .ssub{font-size:11px;color:var(--txt2);line-height:1.4;min-height:15px;}
+.scard .srow{display:flex;align-items:center;gap:6px;margin-top:7px;flex-wrap:wrap;}
+.tbadge{font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;color:#1a1208;}
+.tbadge.swarm{background:#e2643a;color:#fff;}
+.tbadge.skirmish{background:#5a9bd4;color:#fff;}
+.tbadge.battle{background:#d6483c;color:#fff;}
+.tbadge.tactics{background:#9a7fd0;color:#fff;}
+.scard .ckmark{position:absolute;top:7px;right:9px;color:var(--gold2);font-size:13px;font-weight:800;}
+/* 武器SVGアイコン */
+.wsvg{display:inline-block;background:#0c0a10;border-radius:8px;padding:3px;box-sizing:border-box;line-height:0;}
+.wico .wsvg{width:100%;height:100%;border-radius:6px;padding:2px;}
+.choice .ci.wsvg{flex:0 0 52px;width:52px;height:52px;}
+.cell .av.wsvg{padding:5px;}
+.pull .wsvg{width:70%;aspect-ratio:1;margin:0 auto;}
+/* ストーリー画面 */
+.story-text{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.85;color:var(--txt);margin:12px 0;white-space:pre-wrap;}
+.proto-pick{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
+.proto-card{flex:1 1 140px;min-width:130px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:2px solid var(--line);border-radius:12px;padding:10px;cursor:pointer;text-align:center;transition:.12s;}
+.proto-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+.proto-card.sel{border-color:var(--gold);box-shadow:0 0 12px rgba(232,192,96,.4);}
+.proto-card .pav{width:60px;height:60px;margin:0 auto 4px;image-rendering:pixelated;border-radius:8px;background:#0c0a10;}
+.proto-card .pnm{font-weight:800;font-size:16px;}
+.proto-card .pwp{font-size:11px;color:var(--gold2);margin-top:2px;}
+.proto-card .psk{font-size:11px;color:var(--txt2);margin-top:3px;line-height:1.4;}
+.diff-row{display:flex;gap:8px;margin:6px 0 4px;}
+.diff-btn{flex:1;padding:11px;border:2px solid var(--line);border-radius:11px;background:var(--panel2);color:var(--txt);font-weight:800;font-size:14px;cursor:pointer;transition:.1s;}
+.diff-btn:hover{border-color:var(--gold);}
+.diff-btn.sel{border-color:var(--gold);background:linear-gradient(180deg,#3a2c10,var(--panel));color:var(--gold2);}
+.diff-btn small{display:block;font-weight:400;font-size:10px;color:var(--txt2);margin-top:2px;}
