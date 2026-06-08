@@ -40,7 +40,7 @@ function passiveEvoHint(pid){
 function show(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
   $('#hud').classList.remove('show');
-  if(id) $('#'+id).classList.add('show');
+  if(id){ const s=$('#'+id); s.classList.add('show'); s.scrollTop=0; }   // 遷移先は必ず先頭から(前画面のスクロール位置を持ち越さない)
 }
 
 // ── タイトル ───────────────────────────────
@@ -376,6 +376,7 @@ function openDetail(g){
     ${g.voice?`<div class="voice">「${g.voice}」</div>`:''}
     <button class="btn" id="m-close" style="margin-top:16px">閉じる</button>`;
   $('#modal').classList.add('show');
+  $('#modalbox').scrollTop=0;   // 別の武将を開いたら必ず先頭から表示(前のスクロール位置を持ち越さない)
   $('#m-close').onclick=()=>$('#modal').classList.remove('show');
 }
 
