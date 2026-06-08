@@ -5,14 +5,14 @@
 window.WBASE = {
   // ── 近接アーク系 ───────────────────────────────
   sword:   {kind:'arc',  dmg:14, area:80,  cd:0.95, amount:1, knock:1.0, arcDeg:112, reach:82,  hue:200, life:0.16},
-  podao:   {kind:'arc',  dmg:30, area:120, cd:1.55, amount:1, knock:1.7, arcDeg:160, reach:120, hue:140, life:0.22},
+  podao:   {kind:'arc',  dmg:30, area:120, cd:1.55, amount:1, knock:1.7, arcDeg:160, reach:120, hue:44,  life:0.22},
   twin:    {kind:'arc',  dmg:7,  area:58,  cd:0.52, amount:2, knock:0.7, arcDeg:120, reach:58,  hue:300, life:0.12},
   axe:     {kind:'arc',  dmg:42, area:104, cd:1.85, amount:1, knock:2.1, arcDeg:70,  reach:104, hue:30,  life:0.24},
   // ── 弾系 ───────────────────────────────────────
-  spear:   {kind:'proj', dmg:17, area:24,  cd:1.05, amount:1, knock:1.0, speed:760, range:240, pierce:4, aim:'facing', hue:190},
+  spear:   {kind:'proj', dmg:17, area:24,  cd:1.05, amount:1, knock:1.0, speed:760, range:240, pierce:4, aim:'facing', hue:210},
   bow:     {kind:'proj', dmg:15, area:14,  cd:0.95, amount:1, knock:0.6, speed:620, range:560, pierce:1, aim:'nearest', hue:60},
   crossbow:{kind:'proj', dmg:8,  area:13,  cd:1.30, amount:5, knock:0.5, speed:660, range:520, pierce:1, aim:'facing', spreadDeg:46, hue:50},
-  chakram: {kind:'proj', dmg:13, area:20,  cd:1.40, amount:1, knock:1.0, speed:500, range:300, pierce:99,aim:'facing', boomerang:true, hue:175},
+  chakram: {kind:'proj', dmg:13, area:20,  cd:1.40, amount:1, knock:1.0, speed:500, range:300, pierce:99,aim:'facing', boomerang:true, hue:280},
   // ── 旋回 ───────────────────────────────────────
   halberd: {kind:'orbit',dmg:8,  area:72,  cd:0.40, amount:2, knock:1.0, orbitR:72,  spin:2.2, hue:0},
   // ── 衝撃波 ─────────────────────────────────────

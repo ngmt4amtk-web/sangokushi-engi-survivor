@@ -50,7 +50,8 @@ G.setupCanvas=setupCanvas;
 let R=null; G.getR=()=>R;
 
 // 難易度倍率(敵hp/敵dmg/獲得xp)。爽快重視で既定はふつう。
-const DIFF={ easy:{ehp:0.7,edmg:0.7,xp:1.3}, normal:{ehp:1,edmg:1,xp:1}, hard:{ehp:1.4,edmg:1.3,xp:0.9} };
+// 難易度=敵の硬さ(ehp)・攻撃力(edmg)・遠隔の量(ranged=弓/術者の出現比)で制御。敵の"数"は難易度に依らず常にワラワラ。
+const DIFF={ easy:{ehp:0.60,edmg:0.55,ranged:0.45,xp:1.25}, normal:{ehp:1,edmg:1,ranged:1,xp:1}, hard:{ehp:1.75,edmg:1.55,ranged:2.1,xp:0.9} };
 function startRun(opts){
   const lord=opts.lord, stage=opts.stage, owned=opts.owned, save=opts.save;
   const diff=DIFF[opts.difficulty]||DIFF.normal;
@@ -272,9 +273,12 @@ function edgePos(margin){
 function currentPhase(){const ph=R.stage.pool;const t=R.t;for(const p of ph){if(t<=p.until)return p;}return ph[ph.length-1];}
 function weightedArch(w){let tot=0;for(const k in w)tot+=w[k];let r=rnd(tot);for(const k in w){r-=w[k];if(r<=0)return k;}return Object.keys(w)[0];}
 function spawnEnemy(){
-  const cap=R.stage.endless? Math.min(440,320+Math.floor(R.t/100)*25) : Math.min(340,260+Math.floor(R.t/120)*25);
+  const cap=R.stage.endless? Math.min(660,460+Math.floor(R.t/100)*40) : Math.min(520,380+Math.floor(R.t/100)*38);
   if(R.enemies.length>=cap)return;
-  const arch=weightedArch(currentPhase().w);
+  // 遠隔の量は難易度で。数(密度)は変えない
+  let _pw=currentPhase().w; const _rg=(R.diff&&R.diff.ranged)||1;
+  if(_rg!==1){ _pw=Object.assign({},_pw); for(const _k of ['archer','shaman']){ if(_pw[_k]) _pw[_k]=Math.max(0.01,_pw[_k]*_rg); } }
+  const arch=weightedArch(_pw);
   const base=window.ENEMY_ARCH[arch];
   const re=(R.stage.recolor&&R.stage.recolor[arch])||{};
   const mn=R.t/60;
@@ -488,8 +492,8 @@ function update(dt){
   if(R.flash>0)R.flash-=dt*2; if(R.shake>0)R.shake-=dt*2.5;
 
   // スポーン: 序盤からそこそこ群れ、時間で密度上限ごと伸ばす(後半は物量で殺しに来る)
-  const cap=R.stage.endless? Math.min(40,18+Math.floor(R.t/90)*5) : Math.min(34,15+Math.floor(R.t/120)*4);
-  const rate=Math.min(cap, R.stage.rate0*1.6 + (R.t/60)*(2.2 + R.stage.rateGrow*18));
+  const cap=R.stage.endless? Math.min(72,36+Math.floor(R.t/80)*8) : Math.min(62,30+Math.floor(R.t/80)*8);
+  const rate=Math.min(cap, R.stage.rate0*3.0 + (R.t/60)*(4.2 + R.stage.rateGrow*22));
   R.spawnAcc+=dt*rate*(R.boss?0.6:1);
   while(R.spawnAcc>=1){R.spawnAcc-=1; spawnEnemy();}
   // 精鋭
@@ -806,14 +810,14 @@ function drawSwing(s){
   const a=Math.max(0,s.life/s.maxLife); const k=1-a; ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
   const rad=s.reach*(0.78+0.22*k);
   // 控えめな扇(薙ぎの軌跡)
-  ctx.globalAlpha=0.10+a*0.14; ctx.fillStyle='hsl('+s.hue+',80%,62%)';
+  ctx.globalAlpha=0.10+a*0.13; ctx.fillStyle='hsl('+s.hue+',64%,55%)';
   ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,rad,-s.arc/2,s.arc/2); ctx.closePath(); ctx.fill();
   // 刃の光(外周)
-  ctx.globalAlpha=0.85*a; ctx.strokeStyle='hsl('+s.hue+',95%,88%)'; ctx.lineWidth=3;
+  ctx.globalAlpha=0.78*a; ctx.strokeStyle='hsl('+s.hue+',72%,76%)'; ctx.lineWidth=3;
   ctx.beginPath(); ctx.arc(0,0,rad,-s.arc/2,s.arc/2); ctx.stroke();
   ctx.restore(); ctx.globalAlpha=1;
 }
-function drawProj(pr){ ctx.save(); ctx.translate(pr.x,pr.y); ctx.rotate(Math.atan2(pr.vy,pr.vx)); ctx.fillStyle='hsl('+pr.hue+',85%,60%)'; ctx.fillRect(-pr.r*1.6,-pr.r*0.5,pr.r*3.2,pr.r); ctx.fillStyle='#fff'; ctx.fillRect(pr.r*0.6,-pr.r*0.3,pr.r,pr.r*0.6); ctx.restore(); }
+function drawProj(pr){ ctx.save(); ctx.translate(pr.x,pr.y); ctx.rotate(Math.atan2(pr.vy,pr.vx)); ctx.fillStyle='hsl('+pr.hue+',70%,60%)'; ctx.fillRect(-pr.r*1.6,-pr.r*0.5,pr.r*3.2,pr.r); ctx.fillStyle='#fff'; ctx.fillRect(pr.r*0.6,-pr.r*0.3,pr.r,pr.r*0.6); ctx.restore(); }
 function drawNova(n){ const a=Math.max(0,n.life/n.maxLife); ctx.globalAlpha=a*0.7; ctx.strokeStyle='hsl('+n.hue+',85%,'+(n.enemy?55:65)+'%)'; ctx.lineWidth=4+(1-a)*6; ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,TAU);ctx.stroke(); ctx.globalAlpha=1; }
 function drawDash(d){ ctx.save();ctx.translate(d.x,d.y);ctx.rotate(Math.atan2(d.vy,d.vx)); ctx.globalAlpha=0.6;ctx.fillStyle='hsl('+d.hue+',80%,60%)';ctx.fillRect(-d.w,-d.w*0.5,d.w*2,d.w); ctx.globalAlpha=1;ctx.restore(); }
 function drawZone(z){

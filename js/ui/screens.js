@@ -114,9 +114,9 @@ function renderPreStory(){
   h+=`</div>
     <h2 class="sec">難易度</h2>
     <div class="diff-row" id="diffRow">
-      <button class="diff-btn" data-d="easy">やさしい<small>敵HP/与ダメ↓ ・ 経験値↑</small></button>
+      <button class="diff-btn" data-d="easy">やさしい<small>敵が柔く弱い・遠隔少なめ（数は多い）</small></button>
       <button class="diff-btn" data-d="normal">ふつう<small>標準バランス（推奨）</small></button>
-      <button class="diff-btn" data-d="hard">むずかしい<small>敵HP/与ダメ↑ ・ 経験値↓</small></button>
+      <button class="diff-btn" data-d="hard">むずかしい<small>敵が硬く強く遠隔多め（数は同じ）</small></button>
     </div>
     <button class="btn primary" id="b-start" style="margin-top:16px;">⚔ 戦闘開始</button>`;
   c.innerHTML=h;
@@ -274,8 +274,8 @@ function renderPostStory(res){
 
 // ── ステージ報酬ガチャ ─────────────────────
 function rollRarityFrom(pool){
-  // pool内のレア度分布に rarityで重み付け(UR/SSR薄め)。weight: N7 R5 SR3 SSR1.5 UR0.8
-  const W=[0,7,5,3,1.5,0.8];
+  // その回の登場武将プールは小さく目玉(高レア)こそ狙い。重みはフラット寄りにして関羽級も出る
+  const W=[0,2.4,2.8,3.0,3.0,2.6];
   const items=pool.map(id=>genById(id)).filter(Boolean);
   let tot=0; for(const g of items) tot+=W[g.rarity]||1;
   let x=Math.random()*tot;
@@ -285,9 +285,15 @@ function rollRarityFrom(pool){
 function doStageGacha(n, st){
   const S=window.Save.get();
   const pool=(st.gachaPool&&st.gachaPool.length)?st.gachaPool:(st.roster||[]);
+  const rolls=[];
+  for(let i=0;i<n;i++) rolls.push(rollRarityFrom(pool));
+  // 5連(クリア)は最低1人をその回の目玉(SSR/UR)で確定。関羽が全然出ない問題への対策
+  if(n>=3){
+    const high=pool.map(genById).filter(g=>g&&g.rarity>=4);
+    if(high.length && !rolls.some(g=>g&&g.rarity>=4)) rolls[rolls.length-1]=high[Math.floor(Math.random()*high.length)];
+  }
   const drops=[];
-  for(let i=0;i<n;i++){
-    const g=rollRarityFrom(pool);
+  for(const g of rolls){
     const before=S.owned[g.id]||0;
     let refund=0, isNew=before===0;
     if(before>=window.GACHA.dupMax){ refund=window.GACHA.dupRefund[g.rarity]||0; }
