@@ -423,7 +423,7 @@ function buildChoices(){
   //    restrict(swarm/長坂型)では主役(protagonist)のみ=主役の1武器を一気に育てる設計。
   if(R.weapons.length<6){
     const equipIds=R.weapons.map(w=>w.gen.id);
-    const poolIds = R.stage.restrict ? (R.stage.protagonist||[]) : (R.stage.roster||[]);
+    const poolIds = R.stage.restrict ? (R.stage.protagonist||[]) : (R.stage.levelPool || R.stage.roster || []);
     const baseAvail=window.GENERALS.filter(g=> poolIds.includes(g.id) && !equipIds.includes(g.id) && !(R.fusedConsumed&&R.fusedConsumed.has(g.id)));
     for(const g of baseAvail){ out.push({type:'wnew',gen:g,rarity:g.rarity,weight:[0,7,5,3,1.5,0.8][g.rarity]||1}); }
   }

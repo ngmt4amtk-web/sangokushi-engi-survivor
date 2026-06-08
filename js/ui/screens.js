@@ -367,9 +367,10 @@ function openDetail(g){
       </div>
     </div>
     <div style="margin-top:10px;font-size:13px;"><b style="color:var(--gold2)">${g.skill}</b> ─ ${g.skillDesc}</div>
+    ${g.bio?`<div class="lore">${g.bio}</div>`:''}
+    ${g.chapN?`<div style="font-size:12px;color:var(--txt2);margin:6px 0;line-height:1.55;">演義での登場：全 <b style="color:var(--gold2)">${g.chapN}</b> 回　主な舞台 ${(g.chapters||[]).map(n=>'第'+n+'回').join('・')}</div>`:''}
     <div class="dscore">${bars}</div>
     <div style="font-size:12px;color:var(--txt2)">集約：腕W <b>${g.scores.W}</b> / 戦場B <b>${g.scores.B}</b> / 戦略S <b>${g.scores.S}</b>${g.scores.G?` / 政G <b>${g.scores.G}</b>`:''}</div>
-    ${g.hist?`<div class="lore">${g.hist}</div>`:''}
     ${g.voice?`<div class="voice">「${g.voice}」</div>`:''}
     <button class="btn" id="m-close" style="margin-top:16px">閉じる</button>`;
   $('#modal').classList.add('show');
