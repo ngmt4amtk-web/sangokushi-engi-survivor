@@ -1,10 +1,9 @@
 :root{
-  --ink:#0b0907; --ink2:#14100b; --panel:#1e1711; --panel2:#271f16;
-  --gold:#d9b25a; --gold2:#f3d68a; --red:#b23a2c; --redL:#d8453a;
-  --txt:#f0e7d6; --txt2:#b3a486; --line:#463726;
-  --ur:#ff6f91; --ssr:#ffd35a; --sr:#c089d8; --r:#5cc6f2; --n:#b6c0c4;
-  --f0:#d8453a; --f1:#3f7fd0; --f2:#3aa856; --f3:#b09a78;
-  --mincho:"Hiragino Mincho ProN","Yu Mincho","Songti SC","Noto Serif JP",serif;
+  --ink:#0d0b10; --ink2:#16121c; --panel:#1d1726; --panel2:#241c30;
+  --gold:#e8c060; --gold2:#ffe08a; --red:#c0392b; --redL:#e2403a;
+  --txt:#efe6da; --txt2:#b7ab9b; --line:#3a2f48;
+  --ur:#ff4081; --ssr:#ffd54f; --sr:#ba68c8; --r:#4fc3f7; --n:#b0bec5;
+  --f0:#e2403a; --f1:#3f7fd0; --f2:#3aa856; --f3:#9a8c7a;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;height:100%;background:var(--ink);color:var(--txt);
@@ -211,58 +210,3 @@ a.link{color:var(--gold2);}
 .diff-btn:hover{border-color:var(--gold);}
 .diff-btn.sel{border-color:var(--gold);background:linear-gradient(180deg,#3a2c10,var(--panel));color:var(--gold2);}
 .diff-btn small{display:block;font-weight:400;font-size:10px;color:var(--txt2);margin-top:2px;}
-
-/* ════════ デザインリファイン（演義・墨×朱×金泥／明朝見出し） ════════ */
-/* 明朝の見出しで古典の格を出す（本文は角ゴのまま） */
-.title-jp,h1.logo,h2.sec,.card .nm,.scard .snm,.proto-card .pnm,.choice .cnm,
-.sheet h3,.over h2,.cell .cn,.pull .pn,.res-stat .v,#topinfo,.story-text{font-family:var(--mincho);}
-.snm,.cnm,.sheet h3{letter-spacing:.02em;}
-/* 背景＝墨のヴィネット＋微かな紙目 */
-body{background:#0b0907;}
-.screen{background:
-   radial-gradient(150% 100% at 50% -12%, #1b140d 0%, #0b0907 62%),
-   repeating-linear-gradient(0deg, rgba(255,248,232,.011) 0 1px, transparent 1px 3px);}
-/* タイトル＝朱印エンブレム＋金箔ロゴ */
-#s-title .content{position:relative;}
-#s-title .content::before{content:"演";position:absolute;top:4px;left:50%;transform:translateX(-50%);
-  width:72px;height:72px;line-height:70px;text-align:center;font-family:var(--mincho);font-size:38px;font-weight:900;
-  color:#f0e2bf;background:radial-gradient(circle at 50% 38%,#bf3e2f,#7c1c13);border:2px solid #e7c98a;border-radius:14px;
-  box-shadow:0 6px 20px rgba(178,58,44,.4),inset 0 0 0 3px rgba(0,0,0,.16);z-index:1;}
-h1.logo{margin-top:90px;letter-spacing:.14em;filter:drop-shadow(0 2px 7px rgba(217,178,90,.28));}
-.title-jp{letter-spacing:.5em;opacity:.92;}
-/* ボタン＝金箔/朱の押せる質感 */
-.btn{border-radius:13px;box-shadow:0 2px 0 rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05);letter-spacing:.04em;}
-.btn:hover{box-shadow:0 5px 16px rgba(217,178,90,.22),inset 0 1px 0 rgba(255,255,255,.06);}
-.btn:active{box-shadow:0 1px 0 rgba(0,0,0,.4);}
-.btn.primary{background:linear-gradient(180deg,#cf4738,#962317);border-color:#e08a78;box-shadow:0 3px 0 #5d160d,inset 0 1px 0 rgba(255,255,255,.18);}
-.btn.gold{background:linear-gradient(180deg,#f1d27a,#bf922f);border-color:#ffe9ad;box-shadow:0 3px 0 #7d5e16,inset 0 1px 0 rgba(255,255,255,.42);}
-/* セクション見出しに金→朱のグラデ罫 */
-h2.sec{border-left:none;padding-left:11px;position:relative;text-shadow:0 1px 2px #000;}
-h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;border-radius:2px;background:linear-gradient(180deg,var(--gold2),var(--red));}
-/* カード＝温かみ＋金 hairline＋影 */
-.scard,.card,.proto-card{box-shadow:0 3px 8px rgba(0,0,0,.32);}
-.scard{border-left:3px solid var(--line);}
-.scard:hover,.card:hover,.proto-card:hover{box-shadow:0 6px 16px rgba(0,0,0,.45),0 0 0 1px rgba(217,178,90,.25);}
-.scard.cleared{box-shadow:0 0 0 1px rgba(217,178,90,.45),0 3px 12px rgba(217,178,90,.12);}
-/* ステージカードの勢力を左帯で色分け（:has 非対応でも害なし） */
-.scard:has(.f0){border-left-color:var(--f0);} .scard:has(.f1){border-left-color:var(--f1);}
-.scard:has(.f2){border-left-color:var(--f2);} .scard:has(.f3){border-left-color:var(--f3);}
-/* 型バッジ・勢力チップ＝印章風 */
-.tbadge,.fac-chip{border-radius:6px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.3);letter-spacing:.06em;font-weight:800;}
-/* 図鑑＝レア度の縁に淡い発光 */
-.cell.r5{box-shadow:0 0 11px rgba(255,111,145,.3);} .cell.r4{box-shadow:0 0 9px rgba(255,211,90,.24);}
-.cell:hover{box-shadow:0 0 0 1px rgba(217,178,90,.4);}
-/* ストーリー＝巻物の質感＋朱の縁 */
-.story-text{border:1px solid var(--line);border-left:4px solid var(--red);
-  background:linear-gradient(180deg,#241a12,#1b140e);box-shadow:inset 0 0 34px rgba(0,0,0,.32);
-  font-size:14.5px;line-height:1.92;}
-/* 詳細シート＝列伝を大きく読みやすく＋金縁 */
-.sheet{border-color:rgba(217,178,90,.55);box-shadow:0 14px 44px rgba(0,0,0,.62);}
-.sheet h3{font-size:25px;}
-.profile{font-size:14px;line-height:1.98;color:#ece0cb;}
-/* 選択感（主役・難易度） */
-.proto-card.sel,.diff-btn.sel{box-shadow:0 0 0 1px var(--gold),0 0 16px rgba(217,178,90,.32);}
-/* ガチャ＝高レアにきらめき */
-.pull.r5,.pull.r4{box-shadow:0 0 18px rgba(255,211,90,.38);}
-/* HUD 時刻も明朝で締める */
-#topinfo{letter-spacing:.04em;}
