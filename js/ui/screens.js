@@ -58,11 +58,13 @@ function renderTitle(){
     <div class="sub">武将＝武器。号令ひとつで群を薙ぎ払え。桃園の誓いより、乱世を駆け抜けろ。</div>
     <button class="btn primary" id="b-play">⚔ 出陣する<small>全120の戦い ─ ${clearedN}/120 制覇</small></button>
     <button class="btn" id="b-codex">📖 英雄図鑑<small>集めた武将を閲覧（所持 ${ownedN}人）</small></button>
+    <button class="btn" id="b-barracks">🏯 修練場 ─ 永続強化<small>軍功 ${(S.meta&&S.meta.gold)||0}（勝敗問わず貯まる・死んでも積み上がる）</small></button>
     <div class="note">${navigator.maxTouchPoints>0?'操作：画面を<b>ドラッグで移動</b>。攻撃は全自動。':'操作：<span class="kbd">WASD</span>/<span class="kbd">←↑↓→</span> または画面ドラッグで移動。攻撃は全自動。'}レベルアップで武将（武器）と兵法を選んで強くなる。勝てばその戦いの英雄が仲間になる。</div>
     <button class="btn" id="b-reset" style="margin-top:24px;opacity:.6;font-size:13px;padding:9px;">セーブをリセット</button>
   `;
   $('#b-play').onclick=()=>{renderStage();show('s-stage');};
   $('#b-codex').onclick=()=>{renderCodex();show('s-codex');};
+  $('#b-barracks').onclick=()=>{renderBarracks();show('s-barracks');};
   $('#b-reset').onclick=()=>{if(confirm('全セーブを消去して最初から始めますか？')){window.Save.reset();renderTitle();}};
 }
 
@@ -248,6 +250,7 @@ function onEnd(res){
   const S=window.Save.get();
   S.stats.kills+=res.kills; if(res.win)S.stats.wins++;
   if(res.win){ window.Save.clearStage(res.stage.id,res); }
+  S.meta=S.meta||{gold:0,upg:{}}; S.meta.gold=(S.meta.gold||0)+(res.gold||0);   // 軍功は勝敗問わず永続貯蓄(死んでも積み上がる)
   window.Save.save();
   lastResult=res;
   const box=$('#resultbox');
@@ -259,6 +262,7 @@ function onEnd(res){
       <div class="k">撃破数</div><div class="v">${res.kills}</div>
       <div class="k">到達レベル</div><div class="v">${res.level}</div>
     </div>
+    <div class="gold-earn">軍功 <b>+${res.gold}</b> 獲得　<small>累計 ${S.meta.gold}・修練場で永続強化に使える</small></div>
     <div style="font-size:12px;color:var(--txt2);max-width:340px;text-align:center;margin-bottom:6px;">編成: ${res.weapons.map(w=>w.name+(w.evo?'⚡':'')+'L'+w.level).join('・')}</div>
     <div class="row" style="max-width:340px;width:100%;margin-top:14px;">
       <button class="btn primary" id="r-next">物語の続きへ ▶</button>
@@ -367,6 +371,41 @@ function togglePause(){
   const R=G.getR(); if(!R||R.over)return;
   if($('#pause').classList.contains('show')){ $('#pause').classList.remove('show'); G.pauseToggle(false); }
   else { G.pauseToggle(true); renderPause(); $('#pause').classList.add('show'); }
+}
+
+// ── 修練場(恒久メタ進行・軍功で全武将共通の永続強化) ──
+const UPGRADES=[
+ {key:'hp',name:'最大HP',icon:'❤',desc:'最大HP +8% / Lv',max:8,base:80},
+ {key:'dmg',name:'与ダメージ',icon:'⚔',desc:'全武器の与ダメ +6% / Lv',max:8,base:120},
+ {key:'move',name:'移動速度',icon:'🏃',desc:'移動速度 +4% / Lv',max:5,base:100},
+ {key:'magnet',name:'拾える範囲',icon:'🧲',desc:'経験値の吸引 +12% / Lv',max:5,base:70},
+ {key:'xp',name:'経験値',icon:'📈',desc:'獲得経験値 +7% / Lv',max:6,base:110},
+ {key:'cd',name:'攻撃速度',icon:'⏱',desc:'攻撃間隔 短縮 +4% / Lv',max:5,base:130},
+ {key:'crit',name:'会心率',icon:'✨',desc:'会心率 +3% / Lv',max:5,base:120},
+ {key:'initlv',name:'初期武器Lv',icon:'🗡',desc:'開幕の武器Lv +1 / Lv',max:3,base:220},
+ {key:'gold',name:'軍功獲得',icon:'💰',desc:'獲得軍功 +8% / Lv',max:6,base:90},
+ {key:'revive',name:'復活',icon:'🕊',desc:'戦闘中に復活(HP50%) +1回 / Lv',max:2,base:400},
+];
+function upgCost(u,rank){ return Math.round(u.base*(rank+1)); }
+function renderBarracks(){
+  const S=window.Save.get(); S.meta=S.meta||{gold:0,upg:{}}; S.meta.upg=S.meta.upg||{};
+  const c=$('#s-barracks .content');
+  function draw(){
+    let h=`<div class="topbar"><h2 class="sec" style="margin:0;border:none;">修練場 ─ 軍功で永続強化</h2></div>
+      <div class="bank">所持軍功 <b>${S.meta.gold}</b><small>勝っても負けても貯まる。死んでも積み上がる全武将共通の強化。</small></div>
+      <div class="upg-grid">`;
+    for(const u of UPGRADES){ const rank=S.meta.upg[u.key]||0, maxed=rank>=u.max, cost=upgCost(u,rank), can=!maxed&&S.meta.gold>=cost;
+      h+=`<div class="ucard ${maxed?'maxed':''}">
+        <div class="uh"><span class="uic">${u.icon}</span><span class="unm">${u.name}</span><span class="urank">${rank}/${u.max}</span></div>
+        <div class="udesc">${u.desc}</div>
+        <button class="ubuy ${can?'':'dis'}" data-k="${u.key}" ${can?'':'disabled'}>${maxed?'MAX':'＋ '+cost+' 軍功'}</button>
+      </div>`; }
+    h+=`</div><button class="btn" id="b-refund" style="margin-top:18px;opacity:.7;font-size:13px;padding:10px;">強化をリセット（軍功を全額払い戻す）</button>`;
+    c.innerHTML=h;
+    c.querySelectorAll('.ubuy').forEach(b=>{ if(b.disabled)return; b.onclick=()=>{ const u=UPGRADES.find(x=>x.key===b.dataset.k); const rank=S.meta.upg[u.key]||0; if(rank>=u.max)return; const cost=upgCost(u,rank); if(S.meta.gold<cost)return; S.meta.gold-=cost; S.meta.upg[u.key]=rank+1; window.Save.save(); window.SFX&&SFX.play('evolve'); draw(); }; });
+    $('#b-refund').onclick=()=>{ if(!confirm('全ての永続強化をリセットして軍功を全額払い戻しますか？'))return; let ref=0; for(const u of UPGRADES){ const r=S.meta.upg[u.key]||0; for(let i=0;i<r;i++)ref+=upgCost(u,i); } S.meta.gold+=ref; S.meta.upg={}; window.Save.save(); draw(); };
+  }
+  draw();
 }
 
 // ── 図鑑 ───────────────────────────────────

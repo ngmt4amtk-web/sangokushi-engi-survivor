@@ -58,6 +58,7 @@ function startRun(opts){
   R={
     t:0, running:true, paused:false, over:false, victory:false,
     lord, stage, save, diff,
+    meta:(opts.save&&opts.save.meta)||{gold:0,upg:{}}, revives:0,
     cam:{x:0,y:0},
     player:{x:0,y:0,hp:0,maxHp:0,move:1,magnet:1,facing:{x:1,y:0},ifr:0,
             level:1,xp:0,xpNext:5,gold:0,kills:0,goldFrac:0},
@@ -76,6 +77,9 @@ function startRun(opts){
   // 弱い開幕武将ほど高Lv始動で君主間の序盤格差を均す(攻撃する武器に適用。auraは攻撃しないのでextraが攻撃手)
   const atkGen=extraGen||selfGen;
   if(atkGen){ const w=R.weapons.find(x=>x.gen.id===atkGen.id); if(w){ const pw=atkGen.stat.pwr; w.level= pw<4?4:(pw<6?3:2); } }
+  // 恒久メタ進行: 初期武器Lv / 復活回数
+  R.revives=(R.meta.upg.revive)||0;
+  const _il=(R.meta.upg.initlv)||0; if(_il) for(const w of R.weapons) w.level=Math.min(window.WLEVEL.MAX,w.level+_il);
   // バフ初期化 → 最大HP確定
   recomputeBuffs();
   R.player.maxHp=Math.round(lord.baseHp*(1+(R.buffs.hp||0)));
@@ -127,6 +131,10 @@ function recomputeBuffs(){
   } }
   // 融合武将のオーラ(元君主バフを内蔵)
   for(const w of R.weapons){ if(w.fuseAura){ for(const k in w.fuseAura) b[k]=(b[k]||0)+w.fuseAura[k]; } }
+  // 恒久メタ進行(軍功で買った永続強化)を積算層に1段加える
+  const _mu=(R.meta&&R.meta.upg)||{};
+  b.hp+=(_mu.hp||0)*0.08; b.dmg+=(_mu.dmg||0)*0.06; b.move+=(_mu.move||0)*0.04;
+  b.magnet+=(_mu.magnet||0)*0.12; b.xp+=(_mu.xp||0)*0.07; b.cd+=(_mu.cd||0)*0.04; b.crit+=(_mu.crit||0)*0.03;
   R.buffs=b;
   // 最大HP更新(増分のみ反映、現在HPは比率維持)
   if(R.player.maxHp){
@@ -389,11 +397,17 @@ function fireBossMech(e,w){
 }
 
 // ── 勝敗 ───────────────────────────────────
-function gameOver(){ if(R.over)return; R.over=true; R.running=false; window.SFX&&SFX.play('death'); finalizeRewards(false); G.onGameOver&&G.onGameOver(buildResult(false)); }
+function gameOver(){ if(R.over)return;
+  if(R.revives>0){ R.revives--; R.player.hp=Math.round(R.player.maxHp*0.5); R.player.ifr=2.6; R.flash=0.9; R.shake=0.7; R.hitstop=Math.max(R.hitstop||0,.12);
+    pushText(R.player.x,R.player.y-46,'復活！','#ffd54f',2.3,30); window.SFX&&SFX.play('kizuna');
+    for(const e of R.enemies){ if(!e.isBoss && dist2(e.x,e.y,R.player.x,R.player.y)<220*220) killEnemy(e); }
+    return; }
+  R.over=true; R.running=false; window.SFX&&SFX.play('death'); finalizeRewards(false); G.onGameOver&&G.onGameOver(buildResult(false)); }
 function victory(){ if(R.over)return; R.over=true; R.victory=true; R.running=false; finalizeRewards(true); G.onVictory&&G.onVictory(buildResult(true)); }
 function finalizeRewards(win){
   R.player.gold=Math.floor(R.player.goldFrac);
   R.earned = R.player.gold + Math.floor(R.t/60*window.ECON.surviveGoldPerMin) + (win? R.stage.reward.gold:Math.floor(R.stage.reward.gold*0.3));
+  R.earned = Math.round(R.earned*(1+((R.meta.upg.gold)||0)*0.08));   // 恒久「軍功UP」
   R.tickets = win? (R.stage.reward.ticket||0):0;
 }
 function buildResult(win){return {win,time:R.t,kills:R.player.kills,level:R.player.level,gold:R.earned,tickets:R.tickets,stage:R.stage,lord:R.lord,weapons:R.weapons.map(w=>({name:w.gen.name,level:w.level,rarity:w.gen.rarity,evo:!!w.evo}))};}

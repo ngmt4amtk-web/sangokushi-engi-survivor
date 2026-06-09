@@ -9,6 +9,7 @@ window.Save = (function(){
     stats:{runs:0,kills:0,wins:0},
     seenIntro:false,
     opts:{muted:false},
+    meta:{gold:0, upg:{}},   // 恒久メタ進行: gold=貯蓄軍功, upg={key:rank}
   };
   let S=load();
   function load(){ try{const r=JSON.parse(localStorage.getItem(KEY)); if(r&&r.v) return Object.assign({},JSON.parse(JSON.stringify(DEFAULT)),r);}catch(e){} return JSON.parse(JSON.stringify(DEFAULT)); }
