@@ -58,12 +58,14 @@ function renderTitle(){
     <div class="sub">武将＝武器。号令ひとつで群を薙ぎ払え。桃園の誓いより、乱世を駆け抜けろ。</div>
     <button class="btn primary" id="b-play">⚔ 出陣する<small>全120の戦い ─ ${clearedN}/120 制覇</small></button>
     <button class="btn" id="b-codex">📖 英雄図鑑<small>集めた武将を閲覧（所持 ${ownedN}人）</small></button>
+    <button class="btn" id="b-read">📜 演義を読む<small>クリアした戦いの物語をたどる（${clearedN}/120 開放）</small></button>
     <button class="btn" id="b-barracks">🏯 修練場 ─ 永続強化<small>軍功 ${(S.meta&&S.meta.gold)||0}（勝敗問わず貯まる・死んでも積み上がる）</small></button>
     <div class="note">${navigator.maxTouchPoints>0?'操作：画面を<b>ドラッグで移動</b>。攻撃は全自動。':'操作：<span class="kbd">WASD</span>/<span class="kbd">←↑↓→</span> または画面ドラッグで移動。攻撃は全自動。'}レベルアップで武将（武器）と兵法を選んで強くなる。勝てばその戦いの英雄が仲間になる。</div>
     <button class="btn" id="b-reset" style="margin-top:24px;opacity:.6;font-size:13px;padding:9px;">セーブをリセット</button>
   `;
   $('#b-play').onclick=()=>{renderStage();show('s-stage');};
   $('#b-codex').onclick=()=>{renderCodex();show('s-codex');};
+  $('#b-read').onclick=()=>{renderRead();show('s-read');};
   $('#b-barracks').onclick=()=>{renderBarracks();show('s-barracks');};
   $('#b-reset').onclick=()=>{if(confirm('全セーブを消去して最初から始めますか？')){window.Save.reset();renderTitle();}};
 }
@@ -419,29 +421,129 @@ function renderBarracks(){
   draw();
 }
 
-// ── 図鑑 ───────────────────────────────────
+// ── 演義を読む(クリアした回の物語) ──────────
+const NOTE_ORDER=[['一行','この一回'],['流れ','▶ 流れ'],['名場面','◆ みどころ'],['故事成語','故事成語'],['初登場','初登場の英雄'],['史実メモ','演義こぼれ話 ─ 正史では？']];
+function renderRead(){
+  const S=window.Save.get();
+  const c=$('#s-read .content');
+  const clearedN=Object.keys(S.cleared).length;
+  let rows='';
+  for(const st of window.STAGES){
+    const cleared=!!S.cleared[st.id];
+    rows+=`<div class="rcard ${cleared?'':'locked'}" ${cleared?`data-no="${st.no}"`:''}>
+      <span class="rno">第${st.no}回</span>
+      <span class="rnm">${cleared?st.name:'？？？'}</span>
+      <span class="rgo">${cleared?'読む ▶':'🔒'}</span>
+    </div>`;
+  }
+  c.innerHTML=`<button class="btn back" id="rd-back" style="position:static;width:auto;display:inline-block;margin:0 0 8px;">← 戻る</button>
+    <div class="topbar"><h2 class="sec" style="margin:0;border:none;">演義を読む</h2></div>
+    <div class="note">クリアした戦いの物語を、流れがわかるダイジェスト＋現代語訳で読める。<b>${clearedN}/120</b> 開放中。${clearedN===0?'':'未クリアの回は伏せられている。'}</div>
+    ${clearedN===0?'<div class="read-empty">まだ物語が開いていない。<br>戦いに勝つと、その回がここで読めるようになる。</div>':''}
+    <div class="read-list">${rows}</div>`;
+  $('#rd-back').onclick=()=>{ renderTitle(); show('s-title'); };
+  c.querySelectorAll('.rcard[data-no]').forEach(card=>{ card.onclick=()=>loadChapter(+card.dataset.no); });
+}
+async function loadChapter(no){
+  const c=$('#s-read .content');
+  c.innerHTML=`<div class="read-loading">第${no}回を開いている…</div>`;
+  let data;
+  try{ const r=await fetch(`data/yanyi/ch${no}.json`); if(!r.ok)throw 0; data=await r.json(); }
+  catch(e){ c.innerHTML=`<div class="read-loading">物語を読み込めなかった。<br><button class="btn" id="rd-retry" style="margin-top:12px">← 一覧へ</button></div>`; $('#rd-retry').onclick=renderRead; return; }
+  renderChapter(data);
+}
+function renderChapter(data){
+  const c=$('#s-read .content');
+  const fz=localStorage.getItem('engi-readfont')||'m';
+  let nh='';
+  for(const [key,label] of NOTE_ORDER){
+    const v=data.note&&data.note[key]; if(!v)continue;
+    if(key==='一行'){ nh+=`<div class="nblock n-lead">${esc(v)}</div>`; }
+    else if(key==='流れ'){ nh+=`<div class="nblock n-flow"><div class="nlab">${label}</div><div class="ntext">${esc(v)}</div></div>`; }
+    else { nh+=`<div class="nblock"><div class="nlab">${label}</div><div class="ntext">${esc(v)}</div></div>`; }
+  }
+  const bodyH=(data.body||[]).map(p=>`<p>${esc(p)}</p>`).join('');
+  const cleanTitle=esc(data.title||'').replace(/^第[一二三四五六七八九十百零〇0-9]+回\s*/,'');
+  c.innerHTML=`<button class="btn back" id="rd-list" style="position:static;width:auto;display:inline-block;margin:0 0 8px;">← 一覧へ</button>
+    <div class="ch-head"><div class="ch-no">第${data.no}回</div><h2 class="ch-title">${cleanTitle}</h2></div>
+    <div class="ch-note">${nh}</div>
+    <div class="read-toolbar"><span>文字サイズ</span><button data-fz="s">小</button><button data-fz="m">中</button><button data-fz="l">大</button></div>
+    <div class="ch-divider">― 本文 ―</div>
+    <div class="ch-body fz-${fz}">${bodyH}</div>
+    <button class="btn" id="rd-list2" style="margin:22px auto 8px;display:block;max-width:240px;">← 一覧へ戻る</button>`;
+  const setFz=v=>{ localStorage.setItem('engi-readfont',v); const b=c.querySelector('.ch-body'); if(b)b.className='ch-body fz-'+v; c.querySelectorAll('[data-fz]').forEach(x=>x.classList.toggle('on',x.dataset.fz===v)); };
+  c.querySelectorAll('[data-fz]').forEach(b=>b.onclick=()=>setFz(b.dataset.fz));
+  setFz(fz);
+  const back=()=>{ renderRead(); const s=$('#s-read'); if(s)s.scrollTop=0; };
+  $('#rd-list').onclick=back; $('#rd-list2').onclick=back;
+  const s=$('#s-read'); if(s)s.scrollTop=0;
+}
+
+// ── 図鑑(検索・絞り込み) ────────────────────
+const WORDER=['spear','sword','podao','halberd','twin','bow','crossbow','chakram','mace','axe','charge','summon','fire','array'];
 function renderCodex(){
   const S=window.Save.get();
   const c=$('#s-codex .content');
-  const list=[...window.GENERALS].sort((a,b)=> b.rarity-a.rarity || (b.scores.W-a.scores.W));
   const ownedN=Object.keys(S.owned).length;
-  let h=`<div class="topbar"><h2 class="sec" style="margin:0;border:none;">英雄図鑑（演義390人 / 所持 ${ownedN}）</h2></div>
-    <div class="note">戦いに勝つとその回の英雄が招集できる。集めた武将はここに並ぶ。未所持はシルエット表示。</div>
-    <div class="dex" style="margin-top:12px;">`;
-  for(const g of list){
-    const owned=S.owned[g.id]||0; const avail=owned>0;
-    h+=`<div class="cell r${g.rarity} ${avail?'':'locked'}" data-id="${g.id}">
-      ${owned>1?`<span class="dup">+${owned-1}</span>`:''}
-      <div class="av" data-fid="${g.id}"></div>
-      <div class="cn txt-r${g.rarity}">${avail?g.name:'？？'}</div>
-      <div class="stars txt-r${g.rarity}">${stars(g.rarity)}</div>
-    </div>`;
+  const facTabs=[['all','全'],['0','蜀'],['1','魏'],['2','呉'],['3','群']];
+  c.innerHTML=`<div class="dex-bar">
+    <div class="dex-top"><button class="btn back" id="dx-back">← 戻る</button><div class="dex-title">英雄図鑑</div><span class="dex-prog">所持 <b id="dxShown">0</b>／390</span></div>
+    <div class="dex-tabs" id="dexTabs">${facTabs.map(t=>`<button class="dtab ${t[0]==='all'?'on':''}" data-fac="${t[0]}">${t[1]}</button>`).join('')}</div>
+    <div class="dex-row2"><input class="dex-search" id="dexSearch" type="search" placeholder="名前で検索（例: 劉 / 関羽）" autocomplete="off"></div>
+    <div class="dex-chips" id="dexRar">${[5,4,3,2,1].map(r=>`<button class="chip rch r${r}" data-rar="${r}">${RAR[r].name}</button>`).join('')}</div>
+    <div class="dex-chips wpn" id="dexWpn">${WORDER.map(w=>`<button class="chip wch" data-wpn="${w}">${window.WTYPE[w].jp}</button>`).join('')}</div>
+    <div class="dex-row3">
+      <select class="dex-sort" id="dexSort"><option value="rar">レア順</option><option value="name">名前順</option><option value="chap">登場回数順</option><option value="fac">勢力順</option></select>
+      <label class="dex-toggle"><input type="checkbox" id="dexHide"> 未所持を隠す</label>
+    </div>
+  </div>
+  <div class="dex" id="dexGrid"></div>`;
+  const grid=$('#dexGrid');
+  // 全390cellを一度だけ生成(顔は1回描画)。絞り込みは表示/非表示＋並べ替えのみで再生成しない＝スマホでも軽い
+  const cells=[];
+  for(const g of window.GENERALS){
+    const owned=S.owned[g.id]||0, avail=owned>0;
+    const cell=el('div','cell r'+g.rarity+(avail?'':' locked'));
+    cell.dataset.id=g.id; cell.dataset.fac=g.faction; cell.dataset.rar=g.rarity; cell.dataset.wpn=g.weapon; cell.dataset.name=g.name; cell.dataset.owned=owned; cell.dataset.chap=g.chapN||0;
+    if(owned>1) cell.appendChild(el('span','dup','+'+(owned-1)));
+    const av=el('div','av'); av.appendChild(faceEl(g,50)); cell.appendChild(av);
+    cell.appendChild(el('div','cn txt-r'+g.rarity, avail?g.name:'？？'));
+    cell.appendChild(el('div','stars txt-r'+g.rarity, stars(g.rarity)));
+    cell.onclick=()=>{ if(avail)openDetail(g); };
+    cells.push(cell); grid.appendChild(cell);
   }
-  h+=`</div>`;
-  c.innerHTML=h;
-  // 顔(立ち絵)＋武器バッジを描画
-  c.querySelectorAll('.av[data-fid]').forEach(d=>{ const g=genById(+d.dataset.fid); d.appendChild(faceEl(g,50)); });
-  c.querySelectorAll('.cell').forEach(cell=>{ const g=genById(+cell.dataset.id); const avail=(S.owned[g.id]||0)>0; cell.onclick=()=>{ if(avail)openDetail(g); }; });
+  const st={fac:'all',q:'',rar:new Set(),wpn:new Set(),sort:'rar',hide:false};
+  function applyFilter(){
+    let shownOwned=0;
+    for(const cell of cells){
+      let ok=true;
+      if(st.fac!=='all' && cell.dataset.fac!==st.fac) ok=false;
+      if(ok && st.rar.size && !st.rar.has(+cell.dataset.rar)) ok=false;
+      if(ok && st.wpn.size && !st.wpn.has(cell.dataset.wpn)) ok=false;
+      if(ok && st.q && cell.dataset.name.indexOf(st.q)<0) ok=false;
+      if(ok && st.hide && +cell.dataset.owned===0) ok=false;
+      cell.style.display=ok?'':'none';
+      if(ok && +cell.dataset.owned>0) shownOwned++;
+    }
+    const vis=cells.filter(c=>c.style.display!=='none');
+    vis.sort((a,b)=>{
+      const ao=(+a.dataset.owned>0)?0:1, bo=(+b.dataset.owned>0)?0:1; if(ao!==bo)return ao-bo;  // 未所持は常に後ろ
+      if(st.sort==='name') return a.dataset.name.localeCompare(b.dataset.name,'ja');
+      if(st.sort==='chap') return (+b.dataset.chap)-(+a.dataset.chap) || (+b.dataset.rar)-(+a.dataset.rar);
+      if(st.sort==='fac') return (+a.dataset.fac)-(+b.dataset.fac) || (+b.dataset.rar)-(+a.dataset.rar);
+      return (+b.dataset.rar)-(+a.dataset.rar) || (+b.dataset.chap)-(+a.dataset.chap);
+    });
+    vis.forEach(c=>grid.appendChild(c));
+    const sn=$('#dxShown'); if(sn) sn.textContent=shownOwned;
+  }
+  $('#dx-back').onclick=()=>{ renderTitle(); show('s-title'); };
+  $('#dexTabs').querySelectorAll('.dtab').forEach(b=>b.onclick=()=>{ st.fac=b.dataset.fac; $('#dexTabs').querySelectorAll('.dtab').forEach(x=>x.classList.toggle('on',x===b)); applyFilter(); });
+  $('#dexSearch').oninput=e=>{ st.q=e.target.value.trim(); applyFilter(); };
+  $('#dexRar').querySelectorAll('.rch').forEach(b=>b.onclick=()=>{ const r=+b.dataset.rar; if(st.rar.has(r))st.rar.delete(r); else st.rar.add(r); b.classList.toggle('on'); applyFilter(); });
+  $('#dexWpn').querySelectorAll('.wch').forEach(b=>b.onclick=()=>{ const w=b.dataset.wpn; if(st.wpn.has(w))st.wpn.delete(w); else st.wpn.add(w); b.classList.toggle('on'); applyFilter(); });
+  $('#dexSort').onchange=e=>{ st.sort=e.target.value; applyFilter(); };
+  $('#dexHide').onchange=e=>{ st.hide=e.target.checked; applyFilter(); };
+  applyFilter();
 }
 const DLAB=['実証','武名','膂力','恐怖','戦術','戦略','統率'];
 function openDetail(g){
