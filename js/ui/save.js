@@ -8,6 +8,7 @@ window.Save = (function(){
     difficulty:'normal', // 'easy'|'normal'|'hard'
     stats:{runs:0,kills:0,wins:0},
     seenIntro:false,
+    opts:{muted:false},
   };
   let S=load();
   function load(){ try{const r=JSON.parse(localStorage.getItem(KEY)); if(r&&r.v) return Object.assign({},JSON.parse(JSON.stringify(DEFAULT)),r);}catch(e){} return JSON.parse(JSON.stringify(DEFAULT)); }

@@ -145,7 +145,7 @@ function checkEvolve(){
     if(w.level>=window.WLEVEL.MAX && (R.passives[ev.need]||0)>=ev.needLv){
       w.evo=ev;
       if(ev.generic){ pushText(R.player.x,R.player.y-40,ev.name,'#9ad',1.2,20); }                 // 汎用=控えめ(フラッシュなし)
-      else { pushText(R.player.x,R.player.y-40,'⚡'+ev.name+'!','#ffd54f',1.6,28); R.flash=0.5; }  // 固有=花形
+      else { pushText(R.player.x,R.player.y-40,'⚡'+ev.name+'!','#ffd54f',1.6,28); R.flash=0.5; R.hitstop=Math.max(R.hitstop||0,.06); window.SFX&&SFX.play('evolve'); }  // 固有=花形
     }
   }
 }
@@ -193,7 +193,7 @@ function fuseKizuna(kz,ws){
   R.fusedConsumed=R.fusedConsumed||new Set();
   kz.members.forEach(id=>R.fusedConsumed.add(id));        // 消費メンバーは再ドラフト不可
   pushText(R.player.x,R.player.y-52,'⚔ '+kz.fusedName+' 合体！','#ffd54f',2.1,32);
-  R.flash=0.85; R.shake=0.7; pushPart(R.player.x,R.player.y,'#ffd54f',44,280);
+  R.flash=0.85; R.shake=0.7; R.hitstop=Math.max(R.hitstop||0,.09); window.SFX&&SFX.play('kizuna'); pushPart(R.player.x,R.player.y,'#ffd54f',44,280);
   recomputeBuffs();
   G.onKizunaFuse&&G.onKizunaFuse(kz);
 }
@@ -232,7 +232,7 @@ function applyDamage(e, dmg, opts){
   let crit=false;
   if(opts.crit!==undefined){crit=opts.crit;}
   else { const cr=opts.critRate||0; if(cr>0&&Math.random()<cr){crit=true;} }
-  if(crit) d*= (1.5+(R.buffs.critDmg||0));
+  if(crit){ d*=(1.5+(R.buffs.critDmg||0)); e.hitFlash=0.16; window.SFX&&SFX.play('crit'); if(e.isBoss||e.elite||e.big) R.hitstop=Math.max(R.hitstop||0,.05); }
   if(e.dr) d*= (1-e.dr);
   d=Math.max(1,Math.round(d));
   e.hp-=d;
@@ -256,7 +256,8 @@ function killEnemy(e){
   if(e.explode){ makeEnemyExplosion(e.x,e.y,e.explode); }
   // 精鋭は壺をドロップしやすい
   if(e.elite && R.jars.length<6 && Math.random()<0.6) spawnJar(undefined,e.x,e.y);
-  pushPart(e.x,e.y,'hsl('+(e.hue||0)+',60%,55%)',6,150);
+  const big=e.elite||e.big; pushPart(e.x,e.y,'hsl('+(e.hue||0)+',60%,55%)',big?18:6,big?230:150); if(big)R.flash=Math.max(R.flash,.18);
+  window.SFX&&SFX.play('kill');
 }
 function makeEnemyExplosion(x,y,dmg){
   R.novas.push({x,y,r:6,maxR:60,life:0.3,maxLife:0.3,hue:20,enemy:true,dmg,hit:false});
@@ -338,13 +339,13 @@ function spawnBoss(){
   };
   mech.forEach(m=>e.mt[m]=rnd(2,4));
   R.boss=e; R.enemies.push(e);
-  R.flash=0.6; R.shake=0.5;
+  R.flash=0.6; R.shake=0.5; window.SFX&&SFX.play('bossIn');
   G.onBossIntro&&G.onBossIntro(name,title,line);
 }
 function onBossDead(e){
   e.dead=true; R.boss=null;
   pushPart(e.x,e.y,'hsl('+e.hue+',70%,60%)',40,260);
-  R.flash=0.7; R.shake=0.6;
+  R.flash=0.7; R.shake=0.6; R.hitstop=Math.max(R.hitstop||0,.13); window.SFX&&SFX.play('bossDead');
   R.player.goldFrac += (R.stage.no*40)*(1+(R.buffs.gold||0));
   if(R.stage.endless){ R.nextBossT=R.t+300; return; }
   victory();
@@ -388,7 +389,7 @@ function fireBossMech(e,w){
 }
 
 // ── 勝敗 ───────────────────────────────────
-function gameOver(){ if(R.over)return; R.over=true; R.running=false; finalizeRewards(false); G.onGameOver&&G.onGameOver(buildResult(false)); }
+function gameOver(){ if(R.over)return; R.over=true; R.running=false; window.SFX&&SFX.play('death'); finalizeRewards(false); G.onGameOver&&G.onGameOver(buildResult(false)); }
 function victory(){ if(R.over)return; R.over=true; R.victory=true; R.running=false; finalizeRewards(true); G.onVictory&&G.onVictory(buildResult(true)); }
 function finalizeRewards(win){
   R.player.gold=Math.floor(R.player.goldFrac);
@@ -414,7 +415,7 @@ function processNextLevel(){
   if(!R.pendingLevels||R.pendingLevels<=0){ R.paused=false; return; }
   const choices=buildChoices();
   if(choices.length===0){ R.player.hp=Math.min(R.player.maxHp,R.player.hp+Math.round(R.player.maxHp*0.2)); R.pendingLevels--; return processNextLevel(); }
-  R.paused=true; G.onLevelUp&&G.onLevelUp(choices);
+  R.paused=true; window.SFX&&SFX.play('levelup'); G.onLevelUp&&G.onLevelUp(choices);
 }
 function buildChoices(){
   const out=[];
@@ -468,6 +469,7 @@ function loopStart(){ last=performance.now(); raf=requestAnimationFrame(loop); }
 function loop(now){
   if(!R){return;}
   let dt=(now-last)/1000; last=now; if(dt>0.05)dt=0.05;
+  if(R.hitstop>0){ R.hitstop-=dt; dt=0; }   // ヒットストップ=updateだけ止めて一撃の重みを出す(renderは継続)
   if(R.running && !R.paused){ update(dt); }
   render();
   if(R.running){ raf=requestAnimationFrame(loop); }
@@ -581,7 +583,7 @@ function hitPlayer(dmg){
   let drB=R.buffs.dr||0;
   if(R.lord.sig&&R.lord.sig.lastStand){ drB += (1-R.player.hp/R.player.maxHp)*R.lord.sig.lastStand; }  // 司馬懿「堅忍」: HPが減るほど硬くなる
   let d=dmg*(1-Math.min(0.85,drB));
-  R.player.hp-=d; R.flash=0.25; R.shake=0.3;
+  R.player.hp-=d; R.flash=0.25; R.shake=0.3; window.SFX&&SFX.play('hurt');
   pushPart(R.player.x,R.player.y,'#ff5252',6,140);
   if(R.lord.sig&&R.lord.sig.ragePulse){  // 董卓「暴虐」: 被弾するたび周囲を吹き飛ばす衝撃波
     R.novas.push({x:R.player.x,y:R.player.y,r:6,maxR:120,life:0.3,maxLife:0.3,hue:20,dmg:(12+R.player.level*1.6)*(1+(R.buffs.dmg||0)),knock:1.0,crit:R.buffs.crit||0,hitSet:new Set()});
@@ -711,7 +713,7 @@ function updateGems(dt){
   for(const g of R.gems){
     const dx=p.x-g.x,dy=p.y-g.y,d=Math.hypot(dx,dy)||1;
     if(g.mag||d<mag){ g.mag=true; const sp=Math.min(620,Math.max(120,300+(1-d/220)*340)); g.x+=dx/d*sp*dt; g.y+=dy/d*sp*dt; // 下限clampで遠いmag gemが負速で逃げる事故を防ぐ
-      if(d<15){ gainXp(g.xp); g.taken=true; } }
+      if(d<15){ gainXp(g.xp); g.taken=true; window.SFX&&SFX.play('xp'); } }
     else if(d<soft){ const sp=90; g.x+=dx/d*sp*dt; g.y+=dy/d*sp*dt; } // 遠くのジェムも緩く寄ってくる
   }
   R.gems=R.gems.filter(g=>!g.taken);

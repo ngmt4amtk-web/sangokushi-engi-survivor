@@ -58,7 +58,7 @@ function renderTitle(){
     <div class="sub">武将＝武器。号令ひとつで群を薙ぎ払え。桃園の誓いより、乱世を駆け抜けろ。</div>
     <button class="btn primary" id="b-play">⚔ 出陣する<small>全120の戦い ─ ${clearedN}/120 制覇</small></button>
     <button class="btn" id="b-codex">📖 英雄図鑑<small>集めた武将を閲覧（所持 ${ownedN}人）</small></button>
-    <div class="note">操作：<span class="kbd">WASD</span>/<span class="kbd">←↑↓→</span> または画面ドラッグで移動。攻撃は全自動。レベルアップで武将（武器）と兵法を選んで強くなる。勝てばその戦いの英雄が5連ガチャで仲間になる。</div>
+    <div class="note">${navigator.maxTouchPoints>0?'操作：画面を<b>ドラッグで移動</b>。攻撃は全自動。':'操作：<span class="kbd">WASD</span>/<span class="kbd">←↑↓→</span> または画面ドラッグで移動。攻撃は全自動。'}レベルアップで武将（武器）と兵法を選んで強くなる。勝てばその戦いの英雄が仲間になる。</div>
     <button class="btn" id="b-reset" style="margin-top:24px;opacity:.6;font-size:13px;padding:9px;">セーブをリセット</button>
   `;
   $('#b-play').onclick=()=>{renderStage();show('s-stage');};
@@ -164,6 +164,12 @@ function startGame(){
   show(null); $('#hud').classList.add('show'); $('#pausebtn').style.display='block';
   lastWsig='';
   G.startRun({lord, stage:selStage, owned:S.owned, save:S, difficulty:selDiff});
+  // 初回オンボーディング(最初の1ランだけ寄り添う)
+  if(!S.seenIntro){ S.seenIntro=true; window.Save.save();
+    const tips=['画面をドラッグで移動。攻撃は自動だ','緑の結晶＝経験値。集めてレベルアップ','赤い円や矢印＝危険。避けろ'];
+    tips.forEach((tx,i)=>setTimeout(()=>{ const R=G.getR(); if(!R||R.over)return; const t=$('#bosstoast');
+      t.innerHTML='<div style="font-size:18px;font-weight:800;color:var(--gold2);text-shadow:0 1px 3px #000">'+tx+'</div>';
+      t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2700); }, 1100+i*3400)); }
 }
 
 // ── HUD ────────────────────────────────────
@@ -308,6 +314,7 @@ function doStageGacha(n, st){
   playGacha(drops);
 }
 function playGacha(drops){
+  window.SFX&&(SFX.play('gacha'), drops.some(d=>d.g.rarity>=4)&&SFX.play('kizuna'));
   const fx=$('#gachabox'); fx.innerHTML='';
   const grid=el('div','pull-grid');
   drops.sort((a,b)=>b.g.rarity-a.g.rarity);
@@ -351,6 +358,10 @@ function renderPause(){
   const kz=(G.kizunaActiveList&&G.kizunaActiveList())||[];
   if(kz.length){ const ke=el('div','p-sect'); ke.appendChild(el('div','p-lbl','発動中の縁'));
     ke.appendChild(el('div','p-tags',kz.map(k=>'<span class="ptag kz">'+(k.name||k.fusedName||'')+'</span>').join(''))); box.appendChild(ke); }
+  const mt=el('button','lvbtn'); mt.style.marginTop='12px';
+  const setMt=()=>mt.textContent='効果音 '+(window.SFX&&SFX.isMuted()?'🔇 OFF':'🔊 ON');
+  setMt(); mt.onclick=()=>{ const m=window.SFX&&SFX.toggle(); const S=window.Save.get(); S.opts=S.opts||{}; S.opts.muted=m; window.Save.save(); setMt(); };
+  box.appendChild(mt);
 }
 function togglePause(){
   const R=G.getR(); if(!R||R.over)return;
@@ -413,6 +424,7 @@ function openDetail(g){
 // ── 初期化 ─────────────────────────────────
 function init(){
   G.onHud=updateHud; G.onLevelUp=onLevelUp; G.onGameOver=onEnd; G.onVictory=onEnd; G.onBossIntro=onBossIntro;
+  window.SFX&&SFX.setMuted(!!(window.Save.get().opts&&window.Save.get().opts.muted));
   G.onAutoPause=()=>{ if(!$('#pause').classList.contains('show'))$('#pause').classList.add('show'); };
   $('#pausebtn').onclick=togglePause;
   $('#p-resume').onclick=togglePause;
