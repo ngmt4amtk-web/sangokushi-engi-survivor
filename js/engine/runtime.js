@@ -273,7 +273,8 @@ function edgePos(margin){
 function currentPhase(){const ph=R.stage.pool;const t=R.t;for(const p of ph){if(t<=p.until)return p;}return ph[ph.length-1];}
 function weightedArch(w){let tot=0;for(const k in w)tot+=w[k];let r=rnd(tot);for(const k in w){r-=w[k];if(r<=0)return k;}return Object.keys(w)[0];}
 function spawnEnemy(){
-  const cap=R.stage.endless? Math.min(660,460+Math.floor(R.t/100)*40) : Math.min(520,380+Math.floor(R.t/100)*38);
+  // ★ステージ後半=ビルド完成で物量パワーファンタジー。時間で上限を大幅に伸ばす(終盤は画面が埋まる)
+  const cap=R.stage.endless? Math.min(2000,400+Math.floor(R.t/40)*130) : Math.min(1500,340+Math.floor(R.t/40)*110);
   if(R.enemies.length>=cap)return;
   // 遠隔の量は難易度で。数(密度)は変えない
   let _pw=currentPhase().w; const _rg=(R.diff&&R.diff.ranged)||1;
@@ -492,8 +493,8 @@ function update(dt){
   if(R.flash>0)R.flash-=dt*2; if(R.shake>0)R.shake-=dt*2.5;
 
   // スポーン: 序盤からそこそこ群れ、時間で密度上限ごと伸ばす(後半は物量で殺しに来る)
-  const cap=R.stage.endless? Math.min(72,36+Math.floor(R.t/80)*8) : Math.min(62,30+Math.floor(R.t/80)*8);
-  const rate=Math.min(cap, R.stage.rate0*3.0 + (R.t/60)*(4.2 + R.stage.rateGrow*22));
+  const cap=R.stage.endless? Math.min(130,40+Math.floor(R.t/45)*15) : Math.min(110,34+Math.floor(R.t/45)*14);
+  const rate=Math.min(cap, R.stage.rate0*3.0 + (R.t/60)*(6.5 + R.stage.rateGrow*30));
   R.spawnAcc+=dt*rate*(R.boss?0.6:1);
   while(R.spawnAcc>=1){R.spawnAcc-=1; spawnEnemy();}
   // 精鋭
@@ -598,23 +599,22 @@ G.bossCounter=bossCounter;
 
 function updateEproj(dt){
   const p=R.player;
-  // 呂布「無双」: 旋回する戟(orbit武器)の刃に触れた敵弾を弾き落とす(貫通・ボス弾も)。バブルでなく刃のヒットボックス判定
-  let blades=null;
-  if(R.lord.sig&&R.lord.sig.eprojDeflect){ blades=[];
-    for(const w of R.weapons){ const o=w._orbit; if(!o)continue;
-      for(let i=0;i<o.n;i++){ const a=o.ang+i*TAU/o.n; blades.push({x:p.x+Math.cos(a)*o.rad, y:p.y+Math.sin(a)*o.rad, r:o.size+8}); } }
-  }
+  // ★自分の攻撃に当てた敵弾は消せる(ヴァンサバ流)。弾/薙ぎ/衝撃波/突進/陣・火計/旋回刃 すべてが消去源
+  const hb=[], orbits=[];
+  for(const w of R.weapons){ const o=w._orbit; if(o){ for(let i=0;i<o.n;i++){ const a=o.ang+i*TAU/o.n; const bl={x:p.x+Math.cos(a)*o.rad,y:p.y+Math.sin(a)*o.rad,r:o.size+9}; hb.push(bl); orbits.push(bl); } } }
+  for(const s of R.swings){ hb.push({x:s.x,y:s.y,r:(s.reach||60)*0.95,ang:s.ang,arc:s.arc}); }
+  for(const pr of R.proj){ hb.push({x:pr.x,y:pr.y,r:(pr.r||6)+5}); }
+  for(const n of R.novas){ if(!n.enemy) hb.push({x:n.x,y:n.y,r:n.r+6}); }
+  for(const d of R.dashes){ hb.push({x:d.x,y:d.y,r:(d.w||30)+9}); }
+  for(const z of R.zones){ if(!z.enemy) hb.push({x:z.x,y:z.y,r:z.r}); }
+  const sigDef=R.lord.sig&&R.lord.sig.eprojDeflect;
+  function inHB(list,b){ for(const h of list){ const rr=h.r+b.r; if(dist2(b.x,b.y,h.x,h.y)<rr*rr){
+    if(h.arc!==undefined){ const a=Math.atan2(b.y-h.y,b.x-h.x); const dd=Math.abs(((a-h.ang+Math.PI)%TAU+TAU)%TAU-Math.PI); if(dd>h.arc/2+0.35) continue; }
+    return true; } } return false; }
   for(const b of R.eproj){ b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
-    if(blades){ for(const bl of blades){ const rr=bl.r+b.r; if(dist2(b.x,b.y,bl.x,bl.y)<rr*rr){ b.life=0; pushPart(b.x,b.y,'#ffd54f',3,80); break; } }
-      if(b.life<=0) continue; }
-    // 自分の弾(proj)で敵弾を相殺。b.pierce(=ボス機構由来)は貫通＝消せない。弾vs弾の1:1のみで、薙ぎ等は相殺源にしない(弓将ビルドの差別化)
-    if(!b.pierce){
-      for(const pr of R.proj){
-        if(dist2(b.x,b.y,pr.x,pr.y) < (b.r+pr.r+4)*(b.r+pr.r+4)){
-          b.life=0; if((pr.pierce=(pr.pierce||0)-1)<0)pr.life=0; pushPart(b.x,b.y,'#ffd54f',4,90); break;
-        }
-      }
-    }
+    if(b.pierce){ // ボス予告弾(金リング)=避ける用。呂布「無双」だけは旋回戟で弾ける
+      if(sigDef && inHB(orbits,b)){ b.life=0; pushPart(b.x,b.y,'#ffd54f',3,80); continue; }
+    } else if(inHB(hb,b)){ b.life=0; pushPart(b.x,b.y,'#ffd54f',4,90); continue; }
     if(b.life>0 && dist2(b.x,b.y,p.x,p.y)<(b.r+10)*(b.r+10)){ if(p.ifr<=0){hitPlayer(b.dmg);p.ifr=0.5;} b.life=0; }
   }
   R.eproj=R.eproj.filter(b=>b.life>0);
@@ -776,6 +776,8 @@ function drawGrid(bg){
 }
 function blit(s,x,y,size,flip){ const h=size*s.height/s.width; ctx.save(); ctx.translate(x,y); if(flip)ctx.scale(-1,1); ctx.drawImage(s,-size/2,-h/2,size,h); ctx.restore(); }
 function drawEnemy(e){
+  // 画面外の雑魚は描画しない(終盤の大物量でも描画負荷を抑える)
+  if(!e.isBoss){ const m=64; if(e.x<R.cam.x-CW/2-m||e.x>R.cam.x+CW/2+m||e.y<R.cam.y-CH/2-m||e.y>R.cam.y+CH/2+m) return; }
   const s= e.isBoss? window.Sprites.bossSprite(e.shape,e.hue) : window.Sprites.enemy(e.shape,e.hue,e.r>22?1:0);
   const size=e.r*2.3; const flip=R.player.x<e.x;
   // ボスの予告テレグラフ(スプライトの下に描く)
