@@ -10,6 +10,13 @@ function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className
 function stars(r){return '★'.repeat(r);}
 function fmtT(s){s=Math.floor(s);return (Math.floor(s/60))+':'+String(s%60).padStart(2,'0');}
 function genById(id){return window.GENERALS.find(g=>g.id===id);}
+function genByName(n){const g=window.GENERALS.find(x=>x.name===n);return g?g.id:null;}
+// その回のシーン定義(章=シーン連結)。主役名→idへ解決して返す。無ければnull
+function chapterScenesFor(stage){
+  const raw = (stage&&stage.scenes) || (window.CHAPTER_SCENES && stage && window.CHAPTER_SCENES[stage.no]);
+  if(!raw||!raw.length) return null;
+  return raw.map(sc=>Object.assign({},sc,{proto:(typeof sc.proto==='number'?sc.proto:genByName(sc.proto))}));
+}
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 
 // ── 武器SVGアイコン要素 ─────────────────────
@@ -109,18 +116,27 @@ function renderPreStory(){
   let h=`<button class="btn back" style="position:static;width:auto;display:inline-block;margin:0 0 8px;">← 戻る</button>
     <div class="topbar"><h2 class="sec" style="margin:0;border:none;">第${st.no}回 『${st.name}』 ─ ${st.year||''}</h2></div>
     <div class="story-text">${st.storyPre||''}</div>
-    <h2 class="sec">主役を選べ ─ あなたが操る武将</h2>
-    <div class="proto-pick" id="protoPick">`;
-  for(const g of protos){
-    h+=`<div class="proto-card" data-id="${g.id}">
-      <canvas class="pav" data-av="${g.id}"></canvas>
-      <div class="pnm txt-r${g.rarity}">${g.name}</div>
-      <div class="pwp">${g.weaponName}（${window.WTYPE[g.weapon].jp}）</div>
-      <div class="psk">${g.skillDesc||''}</div>
-    </div>`;
+    `;
+  const _scn = chapterScenesFor(st);
+  const isChapter = _scn && _scn.length;
+  if(isChapter){
+    h+=`<h2 class="sec">この回の場面 ─ ${_scn.length}幕を連続で戦う（主役が替わる）</h2><div class="scene-list">`;
+    _scn.forEach((sc,i)=>{ const g=genById(sc.proto); const kl={sweep:'掃討',survive:'耐久',doom:'悲運'}[sc.kind]||sc.kind;
+      h+=`<div class="sl-row"><span class="sl-n">${i+1}</span><span class="sl-nm txt-r${g?g.rarity:1}">${g?g.name:'？'}</span><span class="sl-k ${sc.kind}">${kl}</span><span class="sl-t">${sc.dur}秒</span></div>`; });
+    h+=`</div>`;
+  } else {
+    h+=`<h2 class="sec">主役を選べ ─ あなたが操る武将</h2><div class="proto-pick" id="protoPick">`;
+    for(const g of protos){
+      h+=`<div class="proto-card" data-id="${g.id}">
+        <canvas class="pav" data-av="${g.id}"></canvas>
+        <div class="pnm txt-r${g.rarity}">${g.name}</div>
+        <div class="pwp">${g.weaponName}（${window.WTYPE[g.weapon].jp}）</div>
+        <div class="psk">${g.skillDesc||''}</div>
+      </div>`;
+    }
+    h+=`</div>`;
   }
-  h+=`</div>
-    <h2 class="sec">難易度</h2>
+  h+=`<h2 class="sec">難易度</h2>
     <div class="diff-row" id="diffRow">
       <button class="diff-btn" data-d="easy">やさしい<small>敵が柔く弱い・遠隔少なめ（数は多い）</small></button>
       <button class="diff-btn" data-d="normal">ふつう<small>標準バランス（推奨）</small></button>
@@ -175,16 +191,104 @@ function buildLord(gen){
 // ── ゲーム開始 ─────────────────────────────
 function startGame(){
   const S=window.Save.get(); S.stats.runs++; window.Save.save();
+  const stage=selStage;
+  const _scenes=chapterScenesFor(stage);
+  if(_scenes && _scenes.length){   // 章=シーン連結(複数幕の連続)
+    chap={stage, scenes:_scenes, idx:0, accum:{kills:0,gold:0,level:1,time:0}};
+    playScene(); return;
+  }
+  chap=null;
   const lord=buildLord(selProto);
-  show(null); $('#hud').classList.add('show'); $('#pausebtn').style.display='block';
-  lastWsig='';
-  G.startRun({lord, stage:selStage, owned:S.owned, save:S, difficulty:selDiff, curse:selCurse});
+  show(null); $('#hud').classList.add('show'); $('#pausebtn').style.display='block'; lastWsig='';
+  G.startRun({lord, stage, owned:S.owned, save:S, difficulty:selDiff, curse:selCurse});
+  maybeOnboard(S);
+}
+function maybeOnboard(S){
   // 初回オンボーディング(最初の1ランだけ寄り添う)
   if(!S.seenIntro){ S.seenIntro=true; window.Save.save();
     const tips=['画面をドラッグで移動。攻撃は自動だ','緑の結晶＝経験値。集めてレベルアップ','赤い円や矢印＝危険。避けろ'];
     tips.forEach((tx,i)=>setTimeout(()=>{ const R=G.getR(); if(!R||R.over)return; const t=$('#bosstoast');
       t.innerHTML='<div style="font-size:18px;font-weight:800;color:var(--gold2);text-shadow:0 1px 3px #000">'+tx+'</div>';
       t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2700); }, 1100+i*3400)); }
+}
+
+// ── 章シーケンサ(1回=複数シーンの連続。主役・型・秒数がシーンごとに変わる) ──
+let chap=null;
+function sceneStageOf(stage,sc){   // 章stageを土台に、そのシーンの主役/型/秒数/敵で上書き
+  const st=Object.assign({},stage);
+  st.dur=sc.dur;
+  st.protagonist=[sc.proto];
+  if(sc.roster) st.roster=sc.roster;
+  st.boss = (sc.kind==='sweep') ? (sc.boss||stage.boss) : null;   // sweepのみボス撃破で勝利。survive/doomはボス無し
+  if(sc.recolor) st.recolor=sc.recolor;
+  if(sc.pool) st.pool=sc.pool;
+  st.elites = (sc.kind==='sweep') ? (sc.elites!==undefined?sc.elites:stage.elites) : [];
+  st.endless=false;
+  return st;
+}
+function playScene(){
+  const S=window.Save.get();
+  const sc=chap.scenes[chap.idx];
+  const gen=genById(sc.proto)||genById((chap.stage.protagonist||[])[0]);
+  const lord=buildLord(gen);
+  const last=chap.idx===chap.scenes.length-1;
+  show(null); $('#hud').classList.add('show'); $('#pausebtn').style.display='block'; lastWsig='';
+  G.startRun({lord, stage:sceneStageOf(chap.stage,sc), owned:S.owned, save:S, difficulty:selDiff, curse:selCurse,
+    scene:{kind:sc.kind, dur:sc.dur, last, deathLine:sc.deathLine, epitaph:sc.epitaph}});
+  sceneIntro(sc,gen);
+}
+function sceneIntro(sc,gen){
+  const t=$('#bosstoast');
+  const kl={sweep:'討て',survive:'耐えよ',doom:'避けられぬ最期'}[sc.kind]||'';
+  t.innerHTML=`<div style="font-size:12px;color:var(--txt2)">第${chap.idx+1}幕 ／ ${chap.scenes.length}　${kl}</div>
+    <div style="font-size:23px;font-weight:900;color:${sc.kind==='doom'?'var(--redL)':'var(--gold2)'}">${gen?gen.name:''}</div>
+    <div style="font-size:13px;color:var(--txt2);margin-top:2px">${esc(sc.name||'')}</div>
+    ${sc.kind==='doom'?'<div class="voice" style="color:var(--redL);margin-top:4px">これは避けられぬ運命──どこまで抗える？</div>':''}
+    ${sc.kind==='survive'?`<div class="voice" style="color:var(--gold2);margin-top:4px">${sc.dur}秒、生き延びろ</div>`:''}`;
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), sc.kind==='sweep'?2000:3200);
+}
+function onSceneEnd(reason,res){
+  if(!chap){ onEnd(res); return; }
+  chap.accum.kills+=res.kills; chap.accum.gold+=res.gold; chap.accum.time+=res.time; chap.accum.level=Math.max(chap.accum.level,res.level);
+  $('#pausebtn').style.display='none';
+  const sc=chap.scenes[chap.idx];
+  const last=chap.idx===chap.scenes.length-1;
+  if(reason==='dead'){ finishChapter(false,res); return; }   // 通常シーンで力尽き＝章敗北
+  const advance=()=>{ if(last) finishChapter(true,res); else { chap.idx++; interlude(playScene); } };
+  if(reason==='doom') showDoom(sc, advance); else advance();
+}
+function showDoom(sc, next){
+  const box=$('#scenebox'); box.className='sb-doom';
+  box.innerHTML=`<div class="doom-mark">─ 避けられぬ最期 ─</div>
+    <div class="doom-line">${sc.deathLine?('「'+esc(sc.deathLine)+'」'):''}</div>
+    <div class="doom-epi">${esc(sc.epitaph||'')}</div>
+    <button class="btn" id="doom-go">先へ ▶</button>`;
+  $('#sceneov').classList.add('show');
+  const line=box.querySelector('.doom-line'), epi=box.querySelector('.doom-epi'), btn=box.querySelector('#doom-go');
+  [line,epi,btn].forEach(e=>e&&(e.style.opacity=0));
+  setTimeout(()=>line&&(line.style.opacity=1),400);
+  setTimeout(()=>epi&&(epi.style.opacity=1),2000);
+  setTimeout(()=>btn&&(btn.style.opacity=1),2800);
+  window.SFX&&SFX.play('bossDead');
+  $('#doom-go').onclick=()=>{ $('#sceneov').classList.remove('show'); next(); };
+}
+function interlude(next){
+  const sc=chap.scenes[chap.idx];   // idxは進めた後＝これが次の幕
+  const gen=genById(sc.proto);
+  const box=$('#scenebox'); box.className='sb-il';
+  box.innerHTML=`<div class="il-mark">― 第${chap.idx+1}幕 ／ ${chap.scenes.length} ―</div>
+    <div class="il-name">${esc(sc.name||'')}</div>
+    ${gen?`<div class="il-who">主役 <b class="txt-r${gen.rarity}">${gen.name}</b></div>`:''}
+    <div class="il-text">${esc(sc.pre||'物語は続く。')}</div>
+    <button class="btn primary" id="il-go">進む ▶</button>`;
+  $('#sceneov').classList.add('show');
+  $('#il-go').onclick=()=>{ $('#sceneov').classList.remove('show'); next(); };
+}
+function finishChapter(win,res){
+  const names=chap.scenes.map(s=>{const g=genById(s.proto);return g?g.name:'';}).filter((v,i,a)=>v&&a.indexOf(v)===i);
+  const merged=Object.assign({},res,{win, stage:chap.stage, kills:chap.accum.kills, gold:chap.accum.gold, time:chap.accum.time, level:chap.accum.level, lord:{name:names.join('・')}});
+  chap=null;
+  onEnd(merged);
 }
 
 // ── HUD ────────────────────────────────────
@@ -575,7 +679,7 @@ function openDetail(g){
 
 // ── 初期化 ─────────────────────────────────
 function init(){
-  G.onHud=updateHud; G.onLevelUp=onLevelUp; G.onGameOver=onEnd; G.onVictory=onEnd; G.onBossIntro=onBossIntro;
+  G.onHud=updateHud; G.onLevelUp=onLevelUp; G.onGameOver=onEnd; G.onVictory=onEnd; G.onBossIntro=onBossIntro; G.onSceneEnd=onSceneEnd;
   window.SFX&&SFX.setMuted(!!(window.Save.get().opts&&window.Save.get().opts.muted));
   G.onAutoPause=()=>{ if(!$('#pause').classList.contains('show'))$('#pause').classList.add('show'); };
   $('#pausebtn').onclick=togglePause;

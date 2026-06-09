@@ -65,7 +65,9 @@ function startRun(opts){
     weapons:[], passives:{},
     enemies:[], eproj:[], proj:[], swings:[], novas:[], dashes:[], zones:[], minions:[], gems:[], texts:[], parts:[], jars:[],
     spawnAcc:0, eliteIdx:0, boss:null, bossWarned:false, jarT:rnd(12,18),
-    nextBossT: stage.endless? 300:stage.dur,
+    scene:(opts.scene||null),   // 章のシーン{kind:'sweep|survive|doom', dur, last, deathLine, epitaph}。無ければ従来の単発バトル
+    // sweep=従来(durでボス→撃破で勝利) / survive=dur生存で勝利(ボス無し) / doom=dur or HP0で強制死(章は進む)
+    nextBossT: (opts.scene? (opts.scene.kind==='sweep'?opts.scene.dur:1e9) : (stage.endless? 300:stage.dur)),
     grid:new Map(), GRID:72,
     buffs:{}, uid:1,
     flash:0, shake:0, timeScale:1,
@@ -402,8 +404,14 @@ function gameOver(){ if(R.over)return;
     pushText(R.player.x,R.player.y-46,'復活！','#ffd54f',2.3,30); window.SFX&&SFX.play('kizuna');
     for(const e of R.enemies){ if(!e.isBoss && dist2(e.x,e.y,R.player.x,R.player.y)<220*220) killEnemy(e); }
     return; }
-  R.over=true; R.running=false; window.SFX&&SFX.play('death'); finalizeRewards(false); G.onGameOver&&G.onGameOver(buildResult(false)); }
-function victory(){ if(R.over)return; R.over=true; R.victory=true; R.running=false; finalizeRewards(true); G.onVictory&&G.onVictory(buildResult(true)); }
+  R.over=true; R.running=false; window.SFX&&SFX.play('death'); finalizeRewards(false);
+  const _r=buildResult(false); if(R.scene) G.onSceneEnd&&G.onSceneEnd('dead',_r); else G.onGameOver&&G.onGameOver(_r); }
+function victory(){ if(R.over)return; R.over=true; R.victory=true; R.running=false; finalizeRewards(true);
+  const _r=buildResult(true); if(R.scene) G.onSceneEnd&&G.onSceneEnd('clear',_r); else G.onVictory&&G.onVictory(_r); }
+// 悲運シーン: 避けられぬ最期。dur満了 or HP0で必ず散る。章は進むので報酬は保証し、勝敗でなく「どこまで抗えたか」を記録
+function doomEnd(){ if(R.over)return; R.over=true; R.victory=true; R.running=false; R.player.hp=0;
+  R.shake=1; R.flash=1; R.hitstop=Math.max(R.hitstop||0,.25); window.SFX&&SFX.play('death'); finalizeRewards(true);
+  const _r=buildResult(true); _r.doom=true; G.onSceneEnd&&G.onSceneEnd('doom',_r); }
 function finalizeRewards(win){
   R.player.gold=Math.floor(R.player.goldFrac);
   R.earned = R.player.gold + Math.floor(R.t/60*window.ECON.surviveGoldPerMin) + (win? R.stage.reward.gold:Math.floor(R.stage.reward.gold*0.3));
@@ -517,14 +525,20 @@ function update(dt){
   while(R.stage.elites && !R.boss && R.eliteIdx<R.stage.elites.length && R.t>=R.stage.elites[R.eliteIdx].t){ spawnElite(R.stage.elites[R.eliteIdx]); R.eliteIdx++; }  // ボス出現中は精鋭を止める
   // ボス
   if(!R.boss && R.t>=R.nextBossT){ spawnBoss(); }
+  // シーン終了判定: survive=生存達成で勝利 / doom=満了で強制死
+  if(R.scene && !R.over){ const _k=R.scene.kind;
+    if(_k==='survive' && R.t>=R.scene.dur) victory();
+    else if(_k==='doom' && R.t>=R.scene.dur) doomEnd(); }
   if(R.boss && !R.bossWarned){R.bossWarned=true;}
   if(R.boss&&R.boss.dead)R.boss=null;
 
   // ★脅威スポーン: 消せない色付きビーム術者/貫通突撃。時間と難易度(遠隔量)で頻発=後半は油断すると死ぬ
-  if(R.t>16){ R.threatT=(R.threatT==null?rnd(3,5):R.threatT)-dt;
-    if(R.threatT<=0){ const mn=R.t/60, dr=((R.diff&&R.diff.ranged)||1)*(1+R.curse);
-      R.threatT=Math.max(1.4,(8.0-mn*0.9))/Math.max(.5,dr);
-      const arch=Math.random()<0.62?'beamer':'lancer', base=window.ENEMY_ARCH[arch];
+  // 悲運(doom)シーンでは開幕から避けきれぬ遠隔弾幕を浴びせ「逃れられぬ最期」を体現する
+  const _doom=R.scene&&R.scene.kind==='doom';
+  if(R.t>(_doom?1:16)){ R.threatT=(R.threatT==null?(_doom?rnd(.4,.9):rnd(3,5)):R.threatT)-dt;
+    if(R.threatT<=0){ const mn=R.t/60, dr=((R.diff&&R.diff.ranged)||1)*(1+R.curse)*(_doom?2.4:1);
+      R.threatT=Math.max(_doom?0.5:1.4,(8.0-mn*0.9))/Math.max(.5,dr);
+      const arch=(Math.random()<(_doom?0.82:0.62))?'beamer':'lancer', base=window.ENEMY_ARCH[arch];
       const hpMul=R.stage.hpMul*(1+R.stage.growthPerMin*mn)*((R.diff&&R.diff.ehp)||1);
       const dmgMul=R.stage.dmgMul*(1+R.stage.growthPerMin*mn*0.6)*((R.diff&&R.diff.edmg)||1);
       const pos=edgePos(70), en=spawnAt(pos.x,pos.y,base,(R.stage.recolor&&R.stage.recolor[arch])||{},hpMul,dmgMul);
@@ -560,7 +574,7 @@ function update(dt){
   // 死亡敵除去
   R.enemies=R.enemies.filter(e=>!e.dead);
 
-  if(p.hp<=0) gameOver();
+  if(p.hp<=0){ if(R.scene&&R.scene.kind==='doom') doomEnd(); else gameOver(); }
   G.onHud&&G.onHud();
 }
 

@@ -379,3 +379,28 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 .ch-body{font-family:var(--mincho);color:var(--txt);}
 .ch-body p{line-height:1.95;margin:0 0 15px;text-align:justify;}
 .ch-body.fz-s p{font-size:13px;} .ch-body.fz-m p{font-size:15px;} .ch-body.fz-l p{font-size:18px;line-height:2.1;}
+
+/* ══ シーン演出(幕間の読み物／悲運の最期) ══ */
+#sceneov{display:none;align-items:center;justify-content:center;background:rgba(5,3,8,.94);z-index:60;padding:26px;}
+#sceneov.show{display:flex;}
+#scenebox{max-width:420px;width:100%;text-align:center;}
+.sb-doom .doom-mark{font-family:var(--mincho);color:var(--redL);letter-spacing:4px;font-size:14px;margin-bottom:18px;opacity:.9;}
+.sb-doom .doom-line{font-family:var(--mincho);font-size:21px;color:var(--txt);line-height:1.75;font-weight:700;transition:opacity 1s;margin-bottom:22px;text-shadow:0 2px 10px #000;}
+.sb-doom .doom-epi{font-size:13.5px;color:var(--txt2);line-height:1.9;transition:opacity 1.2s;margin-bottom:26px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 8px;}
+.sb-doom #doom-go{transition:opacity .8s;max-width:200px;margin:0 auto;}
+.sb-il .il-mark{font-family:var(--mincho);color:var(--gold);letter-spacing:3px;font-size:13px;margin-bottom:10px;}
+.sb-il .il-name{font-family:var(--mincho);font-size:20px;color:var(--gold2);font-weight:700;line-height:1.5;margin-bottom:8px;}
+.sb-il .il-who{font-size:13px;color:var(--txt2);margin-bottom:14px;}
+.sb-il .il-text{font-family:var(--mincho);font-size:14.5px;color:var(--txt);line-height:1.95;text-align:justify;margin-bottom:24px;}
+.sb-il #il-go{max-width:220px;margin:0 auto;}
+
+/* ══ 前半画面: シーン構成リスト ══ */
+.scene-list{display:flex;flex-direction:column;gap:6px;}
+.sl-row{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;}
+.sl-n{font-family:var(--mincho);color:var(--gold);font-weight:700;flex:0 0 18px;text-align:center;}
+.sl-nm{flex:1;font-size:14px;font-weight:700;}
+.sl-k{font-size:11px;font-weight:800;padding:2px 9px;border-radius:11px;white-space:nowrap;}
+.sl-k.sweep{background:rgba(63,127,208,.2);color:#7fb0e8;}
+.sl-k.survive{background:rgba(217,178,90,.2);color:var(--gold2);}
+.sl-k.doom{background:rgba(178,58,44,.28);color:var(--redL);}
+.sl-t{font-size:11px;color:var(--txt2);flex:0 0 auto;}
