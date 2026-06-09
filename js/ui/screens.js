@@ -15,6 +15,9 @@ function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 // ── 武器SVGアイコン要素 ─────────────────────
 function wiconEl(weaponKey,cls){ const d=el('div','wsvg'+(cls?' '+cls:'')); d.innerHTML=window.weaponIconSvg(weaponKey); return d; }
 function avatar(g,px){const c=document.createElement('canvas');c.width=px;c.height=px;const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(window.Sprites.general(g),0,0,px,px);return c;}
+// 顔(立ち絵)＋武器種の小バッジ。図鑑/選択/ガチャの主役割アイコンに使う
+function faceEl(g,px,cls){ const w=el('div','face'+(cls?' '+cls:'')); const cv=avatar(g,px); cv.className='fav'; w.appendChild(cv);
+  const b=el('div','wbadge'); b.innerHTML=window.weaponIconSvg(g.weapon); b.title=g.weaponName; w.appendChild(b); return w; }
 
 // ── 進化ヒント ──────────────
 function evoHint(gen){
@@ -192,12 +195,12 @@ function renderChoiceCards(choices){
   for(const c of choices){
     const card=el('div','choice'); let ico,inner;
     if(c.type==='wnew'){
-      ico=wiconEl(c.gen.weapon,'ci');
+      ico=faceEl(c.gen,52,'ci');
       inner=`<div class="crow"><span class="tag txt-r${c.gen.rarity}">${RAR[c.gen.rarity].name}新武将</span><span class="cnm">${c.gen.name}</span></div>
         <div class="ct">${c.gen.weaponName}（${window.WTYPE[c.gen.weapon].jp}）</div>
         <div class="cd">${c.gen.skillDesc}</div>${evoHint(c.gen)}`;
     } else if(c.type==='wup'){
-      ico=wiconEl(c.gen.weapon,'ci');
+      ico=faceEl(c.gen,52,'ci');
       inner=`<div class="crow"><span class="tag" style="color:var(--gold2)">強化 Lv${c.w.level+1}</span><span class="cnm">${c.gen.name}</span></div>
         <div class="ct">${c.gen.weaponName}</div>
         <div class="cd">${window.WTYPE[c.gen.weapon].note||c.gen.skillDesc}</div>${evoHint(c.gen)}`;
@@ -311,7 +314,7 @@ function playGacha(drops){
   drops.forEach((d,i)=>{
     const p=el('div','pull r'+d.g.rarity); p.style.animationDelay=(i*0.06)+'s';
     p.style.borderColor=RAR[d.g.rarity].color;
-    p.appendChild(wiconEl(d.g.weapon));
+    p.appendChild(faceEl(d.g,64));
     p.appendChild(el('div','pn txt-r'+d.g.rarity, d.g.name));
     p.appendChild(el('div',null,`<span style="font-size:9px" class="txt-r${d.g.rarity}">${stars(d.g.rarity)}</span> ${d.isNew?'<span style="color:#7CFC8A;font-size:10px;font-weight:800">NEW</span>':(d.refund?`<span style="color:var(--gold2);font-size:9px">+${d.refund}</span>`:`<span style="color:var(--txt2);font-size:9px">凸</span>`)}`));
     grid.appendChild(p);
@@ -323,10 +326,36 @@ function playGacha(drops){
 }
 
 // ── ポーズ ─────────────────────────────────
+function renderPause(){
+  const R=G.getR(); const d=G.hudData&&G.hudData(); if(!R||!d)return;
+  const box=$('#pausebox'); if(!box)return; box.innerHTML='';
+  const lord=genById(R.lord.id);
+  const head=el('div','p-head');
+  if(lord) head.appendChild(faceEl(lord,54,'big'));
+  const dl={easy:'やさしい',normal:'ふつう',hard:'むずかしい'}[selDiff]||'';
+  head.appendChild(el('div','p-hi',`<div class="p-role">操作中の主役</div><div class="p-name txt-r${lord?lord.rarity:1}">${R.lord.name}</div><div class="p-sub">${d.stage.name||''}　<span class="dchip">${dl}</span></div>`));
+  box.appendChild(head);
+  box.appendChild(el('div','p-stats',
+    `<div><span>Lv</span><b>${d.level}</b></div><div><span>時間</span><b>${fmtT(d.t)}</b></div><div><span>撃破</span><b>${d.kills}</b></div><div><span>HP</span><b>${Math.ceil(d.hp)}/${d.maxHp}</b></div><div><span>軍功</span><b>${d.gold}</b></div>`));
+  const wl=el('div','p-sect'); wl.appendChild(el('div','p-lbl','編成 ─ 装備中の武将（武器）'));
+  const wg=el('div','p-team');
+  for(const w of d.weapons){ const cell=el('div','p-wcell'+(w.gen.fused?' fused':'')+(w.evo?' evo':''));
+    cell.appendChild(faceEl(w.gen,38));
+    cell.appendChild(el('div','p-wn',w.gen.name));
+    cell.appendChild(el('div','p-wlv',w.gen.fused?'⚔合体':('Lv'+w.level+(w.evo?' ⚡':''))));
+    wg.appendChild(cell); }
+  wl.appendChild(wg); box.appendChild(wl);
+  const ps=Object.keys(d.passives||{}).filter(id=>d.passives[id]>0);
+  if(ps.length){ const pe=el('div','p-sect'); pe.appendChild(el('div','p-lbl','兵法'));
+    pe.appendChild(el('div','p-tags',ps.map(id=>{const p=window.PASSIVE_BY_ID[id];return '<span class="ptag">'+(p?p.name:id)+' Lv'+d.passives[id]+'</span>';}).join(''))); box.appendChild(pe); }
+  const kz=(G.kizunaActiveList&&G.kizunaActiveList())||[];
+  if(kz.length){ const ke=el('div','p-sect'); ke.appendChild(el('div','p-lbl','発動中の縁'));
+    ke.appendChild(el('div','p-tags',kz.map(k=>'<span class="ptag kz">'+(k.name||k.fusedName||'')+'</span>').join(''))); box.appendChild(ke); }
+}
 function togglePause(){
   const R=G.getR(); if(!R||R.over)return;
   if($('#pause').classList.contains('show')){ $('#pause').classList.remove('show'); G.pauseToggle(false); }
-  else { G.pauseToggle(true); $('#pause').classList.add('show'); }
+  else { G.pauseToggle(true); renderPause(); $('#pause').classList.add('show'); }
 }
 
 // ── 図鑑 ───────────────────────────────────
@@ -342,15 +371,15 @@ function renderCodex(){
     const owned=S.owned[g.id]||0; const avail=owned>0;
     h+=`<div class="cell r${g.rarity} ${avail?'':'locked'}" data-id="${g.id}">
       ${owned>1?`<span class="dup">+${owned-1}</span>`:''}
-      <div class="av wsvg" data-w="${g.weapon}"></div>
+      <div class="av" data-fid="${g.id}"></div>
       <div class="cn txt-r${g.rarity}">${avail?g.name:'？？'}</div>
       <div class="stars txt-r${g.rarity}">${stars(g.rarity)}</div>
     </div>`;
   }
   h+=`</div>`;
   c.innerHTML=h;
-  // 武器SVGアイコン描画
-  c.querySelectorAll('.av[data-w]').forEach(d=>{ d.innerHTML=window.weaponIconSvg(d.dataset.w); });
+  // 顔(立ち絵)＋武器バッジを描画
+  c.querySelectorAll('.av[data-fid]').forEach(d=>{ const g=genById(+d.dataset.fid); d.appendChild(faceEl(g,50)); });
   c.querySelectorAll('.cell').forEach(cell=>{ const g=genById(+cell.dataset.id); const avail=(S.owned[g.id]||0)>0; cell.onclick=()=>{ if(avail)openDetail(g); }; });
 }
 const DLAB=['実証','武名','膂力','恐怖','戦術','戦略','統率'];
@@ -360,7 +389,7 @@ function openDetail(g){
   for(let i=0;i<7;i++) bars+=`<span>${DLAB[i]}</span><div class="dbar"><i style="width:${g.d[i]*10}%"></i></div><b>${g.d[i]}</b>`;
   $('#modalbox').innerHTML=`
     <div style="display:flex;gap:14px;align-items:center;">
-      <div class="wsvg" style="width:84px;height:84px;flex:0 0 84px;border:2px solid var(--${['n','r','sr','ssr','ur'][g.rarity-1]||'n'})">${window.weaponIconSvg(g.weapon)}</div>
+      <div class="dface" data-fid="${g.id}" style="width:88px;height:88px;flex:0 0 88px;border:2px solid var(--${['n','r','sr','ssr','ur'][g.rarity-1]||'n'});border-radius:10px;overflow:hidden;background:#0c0a10;"></div>
       <div>
         <h3 class="txt-r${g.rarity}">${g.name}</h3>
         <div style="color:var(--txt2);font-size:13px;">【${g.title}】 <span class="fac-chip f${g.faction}">${FAC[g.faction].name}</span> ${stars(g.rarity)}</div>
@@ -377,6 +406,7 @@ function openDetail(g){
     <button class="btn" id="m-close" style="margin-top:16px">閉じる</button>`;
   $('#modal').classList.add('show');
   $('#modalbox').scrollTop=0;   // 別の武将を開いたら必ず先頭から表示(前のスクロール位置を持ち越さない)
+  const _df=$('#modalbox .dface'); if(_df) _df.appendChild(faceEl(g,84));
   $('#m-close').onclick=()=>$('#modal').classList.remove('show');
 }
 

@@ -266,3 +266,45 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 .pull.r5,.pull.r4{box-shadow:0 0 18px rgba(255,211,90,.38);}
 /* HUD 時刻も明朝で締める */
 #topinfo{letter-spacing:.04em;}
+
+/* ════ 顔(立ち絵)＋武器バッジ ════ */
+.face{position:relative;display:inline-flex;line-height:0;vertical-align:top;}
+.face .fav{image-rendering:pixelated;border-radius:7px;background:#0c0a10;display:block;width:100%;height:100%;}
+.wbadge{position:absolute;right:-3px;bottom:-3px;width:46%;max-width:22px;min-width:14px;aspect-ratio:1;
+  background:#100c08;border:1px solid var(--line);border-radius:6px;padding:1.5px;line-height:0;box-shadow:0 1px 3px rgba(0,0,0,.6);}
+.wbadge svg{width:100%;height:100%;display:block;}
+.cell .av{display:flex;align-items:center;justify-content:center;background:transparent;padding:0;}
+.cell .av .face{width:52px;height:52px;}
+.cell.locked .fav{filter:brightness(.2) contrast(.7);}   /* 未所持はシルエット */
+.cell.locked .wbadge{display:none;}
+.choice .ci.face{flex:0 0 52px;width:52px;height:52px;background:transparent;}
+.choice .ci.face .fav{border-radius:8px;}
+.pull .face{width:72%;aspect-ratio:1;margin:0 auto;}
+.pull .face .fav{border-radius:8px;}
+.dface .face{width:100%;height:100%;}
+.dface .wbadge{width:26px;max-width:26px;right:0;bottom:0;}
+
+/* ════ 一時停止＝編成＆ステータス ════ */
+#pause{justify-content:flex-start;overflow-y:auto;padding-top:max(20px,5vh);}
+#pausebox{width:100%;max-width:360px;}
+.p-head{display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:3px solid var(--red);border-radius:12px;padding:11px 13px;}
+.p-head .face.big{width:54px;height:54px;flex:0 0 54px;}
+.p-role{font-size:11px;color:var(--txt2);}
+.p-name{font-size:20px;font-weight:800;font-family:var(--mincho);line-height:1.12;}
+.p-sub{font-size:12px;color:var(--txt2);margin-top:2px;}
+.dchip{display:inline-block;background:#3a2c10;color:var(--gold2);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;}
+.p-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0;}
+.p-stats>div{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 2px;text-align:center;}
+.p-stats span{display:block;font-size:10px;color:var(--txt2);}
+.p-stats b{font-size:13px;color:var(--gold2);}
+.p-sect{margin-top:10px;}
+.p-lbl{font-size:12px;color:var(--gold);font-weight:700;margin-bottom:6px;}
+.p-team{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:7px;}
+.p-wcell{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 3px;text-align:center;}
+.p-wcell .face{width:38px;height:38px;margin:0 auto;}
+.p-wcell.evo{border-color:var(--gold);} .p-wcell.fused{border-color:#ffd54f;box-shadow:0 0 8px rgba(255,213,79,.4);}
+.p-wn{font-size:11px;font-weight:700;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.p-wlv{font-size:10px;color:var(--gold2);}
+.p-tags{display:flex;flex-wrap:wrap;gap:5px;}
+.ptag{font-size:11px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:2px 8px;color:var(--txt2);}
+.ptag.kz{color:#ffd54f;border-color:rgba(255,213,79,.4);background:rgba(58,44,16,.6);}
