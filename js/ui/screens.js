@@ -4,7 +4,7 @@ window.UI = (function(){
 const $=s=>document.querySelector(s);
 const G=window.G;
 const RAR=window.RARITY_INFO, FAC=window.FACTION_INFO;
-let selStage=null, selProto=null, selDiff='normal', lastResult=null;
+let selStage=null, selProto=null, selDiff='normal', selCurse=0, lastResult=null;
 
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
 function stars(r){return '★'.repeat(r);}
@@ -124,6 +124,13 @@ function renderPreStory(){
       <button class="diff-btn" data-d="normal">ふつう<small>標準バランス（推奨）</small></button>
       <button class="diff-btn" data-d="hard">むずかしい<small>敵が硬く強く遠隔多め（数は同じ）</small></button>
     </div>
+    <h2 class="sec">天命 ─ 危険を盛るほど 経験値・軍功 が増える</h2>
+    <div class="diff-row" id="curseRow">
+      <button class="diff-btn" data-c="0">封印<small>追加なし</small></button>
+      <button class="diff-btn" data-c="0.3">乱世 +30%<small>敵強化／報酬↑</small></button>
+      <button class="diff-btn" data-c="0.6">動乱 +60%<small>敵強化／報酬↑↑</small></button>
+      <button class="diff-btn" data-c="1">修羅 +100%<small>敵激化／報酬 大</small></button>
+    </div>
     <button class="btn primary" id="b-start" style="margin-top:16px;">⚔ 戦闘開始</button>`;
   c.innerHTML=h;
   // back ボタン(画面内)
@@ -135,9 +142,13 @@ function renderPreStory(){
   c.querySelectorAll('.proto-card').forEach(p=>{ p.onclick=()=>{ selProto=genById(+p.dataset.id); refreshProto(); }; });
   refreshProto();
   // 難易度選択
-  function refreshDiff(){ c.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('sel', b.dataset.d===selDiff)); }
-  c.querySelectorAll('.diff-btn').forEach(b=>{ b.onclick=()=>{ selDiff=b.dataset.d; window.Save.setDifficulty(selDiff); refreshDiff(); }; });
+  function refreshDiff(){ c.querySelectorAll('#diffRow .diff-btn').forEach(b=>b.classList.toggle('sel', b.dataset.d===selDiff)); }
+  c.querySelectorAll('#diffRow .diff-btn').forEach(b=>{ b.onclick=()=>{ selDiff=b.dataset.d; window.Save.setDifficulty(selDiff); refreshDiff(); }; });
   refreshDiff();
+  // 天命(危険⇄報酬)
+  function refreshCurse(){ c.querySelectorAll('#curseRow .diff-btn').forEach(b=>b.classList.toggle('sel', parseFloat(b.dataset.c)===selCurse)); }
+  c.querySelectorAll('#curseRow .diff-btn').forEach(b=>{ b.onclick=()=>{ selCurse=parseFloat(b.dataset.c); refreshCurse(); }; });
+  refreshCurse();
   $('#b-start').onclick=()=>startGame();
 }
 
@@ -165,7 +176,7 @@ function startGame(){
   const lord=buildLord(selProto);
   show(null); $('#hud').classList.add('show'); $('#pausebtn').style.display='block';
   lastWsig='';
-  G.startRun({lord, stage:selStage, owned:S.owned, save:S, difficulty:selDiff});
+  G.startRun({lord, stage:selStage, owned:S.owned, save:S, difficulty:selDiff, curse:selCurse});
   // 初回オンボーディング(最初の1ランだけ寄り添う)
   if(!S.seenIntro){ S.seenIntro=true; window.Save.save();
     const tips=['画面をドラッグで移動。攻撃は自動だ','緑の結晶＝経験値。集めてレベルアップ','赤い円や矢印＝危険。避けろ'];

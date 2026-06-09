@@ -10,4 +10,7 @@ window.ENEMY_ARCH = {
   cavalry: {hp:34,  dmg:12, speed:70, r:15, xp:3, gold:2, behavior:'dasher', shape:'horse',  dashCd:3},
   shaman:  {hp:30,  dmg:8,  speed:36, r:13, xp:3, gold:3, behavior:'ranged', shape:'mage',   shootCd:2.6, shotSpeed:200, range:320, magic:true},
   bomber:  {hp:20,  dmg:6,  speed:64, r:13, xp:2, gold:2, behavior:'chase',  shape:'bomb',   explode:34},
+  // ── 脅威系(避け必須・後半/高難易度で増える) ──
+  beamer:  {hp:42,  dmg:17, speed:26, r:14, xp:4, gold:4, behavior:'beamer', shape:'mage',   shootCd:3.4, shotSpeed:560, range:540, magic:true}, // 予告→消せない色付き貫通ビーム
+  lancer:  {hp:52,  dmg:18, speed:60, r:15, xp:3, gold:3, behavior:'lancer', shape:'horse',  dashCd:3.2}, // 予告→直線を貫通突進
 };

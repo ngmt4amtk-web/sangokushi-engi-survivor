@@ -58,7 +58,7 @@ function startRun(opts){
   R={
     t:0, running:true, paused:false, over:false, victory:false,
     lord, stage, save, diff,
-    meta:(opts.save&&opts.save.meta)||{gold:0,upg:{}}, revives:0,
+    meta:(opts.save&&opts.save.meta)||{gold:0,upg:{}}, revives:0, curse:opts.curse||0,
     cam:{x:0,y:0},
     player:{x:0,y:0,hp:0,maxHp:0,move:1,magnet:1,facing:{x:1,y:0},ifr:0,
             level:1,xp:0,xpNext:5,gold:0,kills:0,goldFrac:0},
@@ -257,7 +257,7 @@ function killEnemy(e){
   if(e.isBoss){ onBossDead(e); return; }
   R.player.kills++;
   // 軍功
-  R.player.goldFrac += (e.gold||1)*window.ECON.killGold*(1+(R.buffs.gold||0));
+  R.player.goldFrac += (e.gold||1)*window.ECON.killGold*(1+(R.buffs.gold||0))*(1+R.curse*0.6);
   // 経験値ジェム
   R.gems.push({x:e.x,y:e.y,xp:e.xp||1,vx:0,vy:0,mag:false});
   // bomberは爆発
@@ -286,14 +286,14 @@ function spawnEnemy(){
   const cap=R.stage.endless? Math.min(2000,400+Math.floor(R.t/40)*130) : Math.min(1500,340+Math.floor(R.t/40)*110);
   if(R.enemies.length>=cap)return;
   // 遠隔の量は難易度で。数(密度)は変えない
-  let _pw=currentPhase().w; const _rg=(R.diff&&R.diff.ranged)||1;
+  let _pw=currentPhase().w; const _rg=((R.diff&&R.diff.ranged)||1)*(1+R.curse*0.5);
   if(_rg!==1){ _pw=Object.assign({},_pw); for(const _k of ['archer','shaman']){ if(_pw[_k]) _pw[_k]=Math.max(0.01,_pw[_k]*_rg); } }
   const arch=weightedArch(_pw);
   const base=window.ENEMY_ARCH[arch];
   const re=(R.stage.recolor&&R.stage.recolor[arch])||{};
   const mn=R.t/60;
-  const hpMul=R.stage.hpMul*(1+R.stage.growthPerMin*mn + mn*mn*0.02)*R.diff.ehp; // 後半は二次で硬くなり物量が脅威に
-  const dmgMul=R.stage.dmgMul*(1+R.stage.growthPerMin*mn*0.6)*R.diff.edmg;
+  const hpMul=R.stage.hpMul*(1+R.stage.growthPerMin*mn + mn*mn*0.02)*R.diff.ehp*(1+R.curse); // 後半は二次で硬くなり物量が脅威に＋天命
+  const dmgMul=R.stage.dmgMul*(1+R.stage.growthPerMin*mn*0.6)*R.diff.edmg*(1+R.curse);
   const pos=edgePos();
   const e=spawnAt(pos.x, pos.y, base, re, hpMul, dmgMul);
   R.enemies.push(e);
@@ -415,7 +415,7 @@ G.quitRun=()=>{ if(R){R.running=false;R.over=true;} };
 
 // ── レベルアップ ───────────────────────────
 function gainXp(n){
-  R.player.xp+=n*(1+(R.buffs.xp||0))*1.8*R.diff.xp;  // ×1.8=経験値収入ノブ(6分で5武将MAX狙い)・難易度xp補正
+  R.player.xp+=n*(1+(R.buffs.xp||0))*1.8*R.diff.xp*(1+R.curse*0.8);  // ×1.8=経験値ノブ＋難易度＋天命の見返り(危険ほど成長)
   let leveled=false;
   while(R.player.xp>=R.player.xpNext){
     R.player.xp-=R.player.xpNext; R.player.level++;
@@ -510,7 +510,7 @@ function update(dt){
 
   // スポーン: 序盤からそこそこ群れ、時間で密度上限ごと伸ばす(後半は物量で殺しに来る)
   const cap=R.stage.endless? Math.min(130,40+Math.floor(R.t/45)*15) : Math.min(110,34+Math.floor(R.t/45)*14);
-  const rate=Math.min(cap, R.stage.rate0*3.0 + (R.t/60)*(6.5 + R.stage.rateGrow*30));
+  const rate=Math.min(cap, (R.stage.rate0*3.0 + (R.t/60)*(6.5 + R.stage.rateGrow*30))*(1+R.curse*0.6));
   R.spawnAcc+=dt*rate*(R.boss?0.6:1);
   while(R.spawnAcc>=1){R.spawnAcc-=1; spawnEnemy();}
   // 精鋭
@@ -519,6 +519,17 @@ function update(dt){
   if(!R.boss && R.t>=R.nextBossT){ spawnBoss(); }
   if(R.boss && !R.bossWarned){R.bossWarned=true;}
   if(R.boss&&R.boss.dead)R.boss=null;
+
+  // ★脅威スポーン: 消せない色付きビーム術者/貫通突撃。時間と難易度(遠隔量)で頻発=後半は油断すると死ぬ
+  if(R.t>16){ R.threatT=(R.threatT==null?rnd(3,5):R.threatT)-dt;
+    if(R.threatT<=0){ const mn=R.t/60, dr=((R.diff&&R.diff.ranged)||1)*(1+R.curse);
+      R.threatT=Math.max(1.4,(8.0-mn*0.9))/Math.max(.5,dr);
+      const arch=Math.random()<0.62?'beamer':'lancer', base=window.ENEMY_ARCH[arch];
+      const hpMul=R.stage.hpMul*(1+R.stage.growthPerMin*mn)*((R.diff&&R.diff.ehp)||1);
+      const dmgMul=R.stage.dmgMul*(1+R.stage.growthPerMin*mn*0.6)*((R.diff&&R.diff.edmg)||1);
+      const pos=edgePos(70), en=spawnAt(pos.x,pos.y,base,(R.stage.recolor&&R.stage.recolor[arch])||{},hpMul,dmgMul);
+      if(arch==='beamer') en.beamHue=(120+(R.stage.no*47)%240);
+      R.enemies.push(en); } }
 
   rebuildGrid();
 
@@ -578,6 +589,20 @@ function updateEnemies(dt){
         e.dashCd-=dt;
         if(e.dashT>0){ e.dashT-=dt; e.x+=e.dvx*sf*dt; e.y+=e.dvy*sf*dt; }
         else if(e.dashCd<=0 && d<420){ e.dashCd=e.dashEvery; e.dashT=0.5; e.dvx=dx/d*260; e.dvy=dy/d*260; }
+        else { e.x+=dx/d*spd*dt; e.y+=dy/d*spd*dt; }
+      } else if(e.behavior==='beamer'){
+        // 予告(aimT)→消せない色付き貫通ビーム。予告中に避ければ被弾しない
+        const want=(e.range||520)*0.62, dir=(d>want?1:-0.5);
+        if(e.aimT>0){ e.aimT-=dt; e.x+=dx/d*spd*0.18*dt; e.y+=dy/d*spd*0.18*dt;
+          if(e.aimT<=0){ const sp=e.shotSpeed||560, a=e.aimAng;
+            R.eproj.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:9,dmg:e.dmg,life:1.7,hue:(e.beamHue!=null?e.beamHue:315),pierce:true,beam:true}); } }
+        else { e.x+=dx/d*spd*dir*dt; e.y+=dy/d*spd*dir*dt;
+          e.shootCd-=dt; if(e.shootCd<=0 && d<(e.range||540) && Math.abs(e.x-R.cam.x)<CW/2+50 && Math.abs(e.y-R.cam.y)<CH/2+50){ e.shootCd=e.shootEvery||3.4; e.aimT=0.72; e.aimAng=Math.atan2(dy,dx); } }
+      } else if(e.behavior==='lancer'){
+        e.dashCd-=dt;
+        if(e.aimT>0){ e.aimT-=dt; if(e.aimT<=0){ e.dvx=Math.cos(e.aimAng)*440; e.dvy=Math.sin(e.aimAng)*440; e.dashT=0.55; } }
+        else if(e.dashT>0){ e.dashT-=dt; e.x+=e.dvx*sf*dt; e.y+=e.dvy*sf*dt; }
+        else if(e.dashCd<=0 && d<480){ e.dashCd=e.dashEvery||3.2; e.aimT=0.5; e.aimAng=Math.atan2(dy,dx); }
         else { e.x+=dx/d*spd*dt; e.y+=dy/d*spd*dt; }
       } else {
         e.x+=dx/d*spd*dt; e.y+=dy/d*spd*dt;
@@ -771,6 +796,12 @@ function render(){
   for(const d of R.dashes)drawDash(d);
   // 敵弾
   for(const b of R.eproj){
+    if(b.beam){ // 消せない貫通ビーム=色付きの長い閃光＋金リング
+      ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(Math.atan2(b.vy,b.vx)); const L=b.r*3.4;
+      ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(-L-2,-b.r-2,L*2+4,b.r*2+4);
+      ctx.fillStyle='hsl('+(b.hue!=null?b.hue:315)+',95%,62%)'; ctx.fillRect(-L,-b.r,L*2,b.r*2);
+      ctx.fillStyle='#fff'; ctx.fillRect(-L*0.45,-b.r*0.4,L*0.9,b.r*0.8); ctx.restore();
+      ctx.strokeStyle='#ffe14d'; ctx.lineWidth=2.5; ctx.beginPath();ctx.arc(b.x,b.y,b.r+4,0,TAU);ctx.stroke(); continue; }
     // 敵弾は常に危険色(通常=橙/魔法=紫)に固定し緑のジェムと混同させない。暗い縁取りで地面から浮かせる
     ctx.fillStyle='rgba(0,0,0,.6)'; ctx.beginPath();ctx.arc(b.x,b.y,b.r+1.6,0,TAU);ctx.fill();
     ctx.fillStyle=b.magic?'#b35cff':'#ff5a2a'; ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);ctx.fill();
@@ -807,6 +838,12 @@ function drawEnemy(e){
       ctx.globalAlpha=0.45+0.4*pulse; ctx.strokeStyle='hsl(45,100%,60%)'; ctx.lineWidth=3.5;
       ctx.beginPath();ctx.arc(e.x,e.y,e.r+8+pulse*10,0,TAU);ctx.stroke(); ctx.globalAlpha=1; }
   }
+  // 脅威敵の予告(beamer=色付きビーム線 / lancer=突進線)。避けられるよう発射前に表示
+  if(!e.isBoss && e.aimT>0){ const pulse=.5+.5*Math.sin(R.t*22), beam=e.behavior==='beamer';
+    ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(e.aimAng);
+    ctx.globalAlpha=.22+.34*pulse; ctx.strokeStyle=beam?('hsl('+(e.beamHue!=null?e.beamHue:315)+',92%,62%)'):'hsl(8,95%,58%)';
+    ctx.lineWidth=beam?7:e.r*1.6; ctx.setLineDash([12,9]);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(beam?640:360,0); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); ctx.globalAlpha=1; }
   if(e.hitFlash>0){ ctx.globalAlpha=1; }
   blit(s,e.x,e.y,size,flip);
   if(e.hitFlash>0){ ctx.globalAlpha=e.hitFlash*4; ctx.fillStyle='#fff'; ctx.fillRect(e.x-size/2,e.y-size/2,size,size*s.height/s.width); ctx.globalAlpha=1; }
