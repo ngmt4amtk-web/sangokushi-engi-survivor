@@ -258,9 +258,11 @@ function showScenePre(sc, next){
   const box=$('#scenebox'); box.className='sb-typewriter';
   const chapIdx = chap ? chap.idx : 0;
   const chapTotal = chap ? chap.scenes.length : 1;
-  const markHtml = chap
+  const markHtml = sc.markText
+    ? `<div class="tw-mark">${esc(sc.markText)}</div>`
+    : (chap
     ? `<div class="tw-mark">第${chapIdx+1}幕 ／ ${chapTotal}　${esc(sc.name||'')}</div>`
-    : '';
+    : '');
   const text = sc.pre || (sc.storyPre) || '';
   // 空行(\n\n)区切りでノベルゲーム式のページ送りにする
   const pages = text.split(/\n\n+/).map(s=>s.trim()).filter(Boolean);
@@ -272,7 +274,7 @@ function showScenePre(sc, next){
   function startPage(){
     done=false; i=0; pre.textContent='';
     nextEl.style.visibility='hidden';
-    nextEl.textContent=(pg<pages.length-1)?'▼ タップで進む':'▼ タップで開戦';
+    nextEl.textContent=(pg<pages.length-1)?'▼ タップで進む':(sc.lastLabel||'▼ タップで開戦');
     clearInterval(tid);
     tid=setInterval(()=>{ i++; pre.textContent=pages[pg].slice(0,i); if(i>=pages[pg].length)finishPage(); },8);
   }
@@ -540,19 +542,24 @@ function onEnd(res){
       <button class="btn primary" id="r-next">物語の続きへ ▶</button>
     </div>`;
   $('#result').classList.add('show');
-  $('#r-next').onclick=()=>{ $('#result').classList.remove('show'); renderPostStory(res); show('s-story'); };
+  $('#r-next').onclick=()=>{ $('#result').classList.remove('show'); renderPostStory(res); };
 }
 
 // ── 後半ストーリー → ガチャ ────────────────
 function renderPostStory(res){
+  // 結末も冒頭と同じノベルゲーム式ページ送りで読ませてから、褒賞画面へ
+  const st=res.stage;
+  const _post=((((window.CHAPTER_SCENES||{})[st.no])||[]).map(s=>s&&s.post).filter(Boolean).pop())||st.storyPost||'';
+  const go=()=>{ renderGachaOffer(res); show('s-story'); };
+  if(_post){ showScenePre({pre:_post, markText:`第${st.no}回 『${st.name}』 ─ 結末`, lastLabel:'▼ 褒賞へ'}, go); }
+  else go();
+}
+function renderGachaOffer(res){
   const st=res.stage;
   const c=$('#s-story .content');
   const pulls=res.win?5:1;
-  // 幕データ側に post があれば結末読み物を上書き(戦闘内容と前口上に正確に接続させる用)
-  const _post=((((window.CHAPTER_SCENES||{})[st.no])||[]).map(s=>s&&s.post).filter(Boolean).pop())||st.storyPost||'';
   c.innerHTML=`
-    <div class="topbar"><h2 class="sec" style="margin:0;border:none;">第${st.no}回 『${st.chapterName||st.name}』 ─ 結末</h2></div>
-    <div class="story-text">${_post.replace(/\n+/g,'<br><br>')}</div>
+    <div class="topbar"><h2 class="sec" style="margin:0;border:none;">第${st.no}回 ─ 戦いの褒賞</h2></div>
     <div class="note" style="text-align:center;">${res.win?'勝利の褒賞':'敗れたが…'}この戦いの英雄 <b>${pulls}人</b> を招集できる。</div>
     <button class="btn gold" id="b-pull" style="margin-top:14px;">🎴 ${pulls}連 招集する</button>
     <button class="btn" id="b-skip" style="opacity:.7">招集せずステージ選択へ</button>`;
