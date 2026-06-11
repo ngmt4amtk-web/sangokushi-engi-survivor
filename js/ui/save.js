@@ -8,11 +8,12 @@ window.Save = (function(){
     difficulty:'normal', // 'easy'|'normal'|'hard'
     stats:{runs:0,kills:0,wins:0},
     seenIntro:false,
-    opts:{muted:false},
+    seenUltIntro:false,
+    opts:{muted:false,autoUlt:false},
     meta:{gold:0, upg:{}},   // 恒久メタ進行: gold=貯蓄軍功, upg={key:rank}
   };
   let S=load();
-  function load(){ try{const r=JSON.parse(localStorage.getItem(KEY)); if(r&&r.v) return Object.assign({},JSON.parse(JSON.stringify(DEFAULT)),r);}catch(e){} return JSON.parse(JSON.stringify(DEFAULT)); }
+  function load(){ try{const r=JSON.parse(localStorage.getItem(KEY)); if(r&&r.v){ const s=Object.assign({},JSON.parse(JSON.stringify(DEFAULT)),r); s.opts=Object.assign({},DEFAULT.opts,r.opts||{}); s.meta=Object.assign({},DEFAULT.meta,r.meta||{}); s.meta.upg=Object.assign({},DEFAULT.meta.upg,(r.meta&&r.meta.upg)||{}); return s; }}catch(e){} return JSON.parse(JSON.stringify(DEFAULT)); }
   function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} }
   function get(){return S;}
   function reset(){ S=JSON.parse(JSON.stringify(DEFAULT)); save(); }

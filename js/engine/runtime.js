@@ -64,6 +64,7 @@ function startRun(opts){
             level:1,xp:0,xpNext:5,gold:0,kills:0,goldFrac:0},
     weapons:[], passives:{},
     enemies:[], eproj:[], proj:[], swings:[], novas:[], dashes:[], zones:[], minions:[], gems:[], texts:[], parts:[], jars:[],
+    ultActs:[], ultFx:[],
     spawnAcc:0, eliteIdx:0, boss:null, bossWarned:false, jarT:rnd(12,18),
     scene:(opts.scene||null),   // 章のシーン{kind:'sweep|survive|doom', dur, last, deathLine, epitaph}。無ければ従来の単発バトル
     // sweep=従来(durでボス→撃破で勝利) / survive=dur生存で勝利(ボス無し) / doom=dur or HP0で強制死(章は進む)
@@ -79,6 +80,11 @@ function startRun(opts){
   // 弱い開幕武将ほど高Lv始動で君主間の序盤格差を均す(攻撃する武器に適用。auraは攻撃しないのでextraが攻撃手)
   const atkGen=extraGen||selfGen;
   if(atkGen){ const w=R.weapons.find(x=>x.gen.id===atkGen.id); if(w){ const pw=atkGen.stat.pwr; w.level= pw<4?4:(pw<6?3:2); } }
+  const ultGen=selfGen||atkGen||window.GENERALS.find(g=>g.name===lord.start)||window.GENERALS[0];
+  const ultMax=(window.ULTS&&window.ULTS.MAX)||70;
+  R.ult={gen:ultGen,def:(window.ULTS&&window.ULTS.forGeneral)?window.ULTS.forGeneral(ultGen):null,
+    gauge:(opts.scene&&opts.scene.kind==='doom')?ultMax*0.5:0,max:ultMax,auto:!!(save&&save.opts&&save.opts.autoUlt),
+    fullCutin:false,casting:false,moveMul:1,heartBeat:0};
   // 恒久メタ進行: 初期武器Lv / 復活回数
   R.revives=(R.meta.upg.revive)||0;
   const _il=(R.meta.upg.initlv)||0; if(_il) for(const w of R.weapons) w.level=Math.min(window.WLEVEL.MAX,w.level+_il);
@@ -214,6 +220,48 @@ G.pushText=pushText;
 function pushPart(x,y,col,n,spd){ if(R.parts.length>320)return; for(let i=0;i<n;i++){const a=rnd(TAU),v=rnd(spd*0.3,spd);R.parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:rnd(0.25,0.6),col,r:rnd(1.5,3.2)});}}
 G.pushPart=pushPart;
 
+// ── 必殺技 ─────────────────────────────────
+function chargeUlt(n){
+  if(!R||!R.ult||R.over)return;
+  R.ult.gauge=clamp((R.ult.gauge||0)+n,0,R.ult.max||70);
+  if(R.ult.auto&&R.ult.gauge>=R.ult.max&&!R.ult.casting) triggerUlt();
+  G.onHud&&G.onHud();
+}
+G.chargeUlt=chargeUlt;
+function setAutoUlt(v){ if(R&&R.ult)R.ult.auto=!!v; }
+G.setAutoUlt=setAutoUlt;
+function triggerUlt(){
+  if(!R||!R.ult||R.over||!R.running||R.paused||R.ult.casting)return false;
+  const u=R.ult, def=u.def||((window.ULTS&&window.ULTS.forGeneral)?window.ULTS.forGeneral(u.gen):null);
+  if(!def||u.gauge<u.max)return false;
+  u.gauge=0; u.casting=true; u.def=def;
+  const full=!u.fullCutin; u.fullCutin=true;
+  playUltCutin(u.gen,def,full);
+  R.hitstop=Math.max(R.hitstop||0,0.45);
+  const run=R;
+  setTimeout(()=>{ if(R!==run||!R||R.over)return; executeUlt(def,u.gen); u.casting=false; G.onHud&&G.onHud(); },450);
+  G.onHud&&G.onHud();
+  return true;
+}
+G.triggerUlt=triggerUlt;
+function playUltCutin(gen,def,full){
+  const ov=document.getElementById('ultcutin'); if(!ov)return;
+  ov.className='ultcutin show '+(full?'full':'mini');
+  ov.innerHTML=`<div class="uc-band"><div class="uc-title"></div><div class="uc-quote"></div></div>`;
+  const title=ov.querySelector('.uc-title'), quote=ov.querySelector('.uc-quote');
+  title.textContent=def.name||'奥義';
+  quote.textContent=def.quote||'';
+  if(full){
+    const bust=document.createElement('canvas'); bust.width=28; bust.height=28; bust.className='uc-bust';
+    const bx=bust.getContext('2d'); bx.imageSmoothingEnabled=false;
+    try{ bx.drawImage(window.Sprites.general(gen),0,0); }catch(e){}
+    ov.insertBefore(bust,ov.firstChild);
+  }
+  window.SFX&&SFX.play('evolve');
+  clearTimeout(ov._tm);
+  ov._tm=setTimeout(()=>{ ov.className='ultcutin'; ov.innerHTML=''; },full?820:520);
+}
+
 // ── 当たり判定クエリ(空間グリッド) ─────────
 function rebuildGrid(){
   R.grid.clear(); const gs=R.GRID;
@@ -233,7 +281,159 @@ function nearestEnemy(x,y,maxR){
 }
 G.nearestEnemy=nearestEnemy;
 
+function ultHue(gen){ const b=gen&&window.WBASE&&window.WBASE[gen.weapon]; return (b&&b.hue!=null)?b.hue:([0,212,140,35][(gen&&gen.faction)||0]||44); }
+function ultWeapon(gen){ return (R.weapons.find(w=>gen&&w.gen.id===gen.id)||R.weapons.find(w=>w.gen.name===R.lord.start)||R.weapons[0]); }
+function ultDamage(gen,params){
+  params=params||{};
+  const w=ultWeapon(gen), sec=params.seconds||7;
+  let dps=10+R.player.level*1.8;
+  if(w&&G.Weapons&&G.Weapons.effStats){
+    const E=G.Weapons.effStats(w,R), cd=Math.max(0.18,E.cd||E.tick||0.5);
+    if(E.kind==='orbit') dps=E.dmg*Math.max(1,E.amount)/0.45;
+    else if(E.kind==='field'||E.kind==='zone') dps=E.dmg*Math.max(1,E.amount)/(E.tick||0.45);
+    else if(E.kind==='buff') dps=10+R.player.level*2+(w.gen.stat.pwr||1)*4;
+    else dps=E.dmg*Math.max(1,E.amount)/cd;
+  }
+  return Math.max(24+R.player.level*2.5,dps*sec);
+}
+function enemyAngleFromPlayer(e){ return Math.atan2(e.y-R.player.y,e.x-R.player.x); }
+function strongTargets(n){
+  return R.enemies.filter(e=>!e.dead).sort((a,b)=>(b.maxHp||b.hp)-(a.maxHp||a.hp)).slice(0,n);
+}
+function applyArcDamage(ang,arc,reach,dmg,knock){
+  const p=R.player, half=arc/2;
+  forEachNear(p.x,p.y,reach+40,e=>{ if(e.dead)return;
+    const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy); if(d>reach+e.r)return;
+    let da=Math.atan2(dy,dx)-ang; da=Math.atan2(Math.sin(da),Math.cos(da)); if(Math.abs(da)>half)return;
+    applyDamage(e,dmg,{critRate:R.buffs.crit||0,knock,kx:dx/(d||1),ky:dy/(d||1)}); e.hitFlash=0.12; bossCounter(e);
+  });
+}
+function executeUlt(def,gen){
+  if(!R||!def)return;
+  const p=R.player, params=def.params||{}, hue=ultHue(gen);
+  R.flash=Math.max(R.flash,0.35); R.shake=Math.max(R.shake,0.35);
+  pushText(p.x,p.y-58,def.name||'奥義','#ffe082',1.6,24);
+  pushPart(p.x,p.y,'hsl('+hue+',85%,66%)',28,260);
+  if(def.prim==='greatslash') ultGreatslash(gen,params,hue);
+  else if(def.prim==='roar') ultRoar(gen,params,hue);
+  else if(def.prim==='dashes') ultDashes(gen,params,hue);
+  else if(def.prim==='spin') ultSpin(gen,params,hue);
+  else if(def.prim==='volley') ultVolley(gen,params,hue);
+  else if(def.prim==='snipe') ultSnipe(gen,params,hue);
+  else if(def.prim==='firestorm') ultFirestorm(gen,params,hue);
+  else if(def.prim==='firewall') ultFirewall(gen,params,hue);
+  else if(def.prim==='bolt') ultBolt(gen,params,hue);
+  else if(def.prim==='timeslow') ultTimeslow(gen,params,hue);
+  else if(def.prim==='berserk') ultBerserk(gen,params,hue);
+  else if(def.prim==='raid') ultRaid(gen,params,hue);
+  else if(def.prim==='heal_rally') ultHealRally(gen,params,hue);
+  else ultBerserk(gen,params,hue);
+}
+function ultGreatslash(gen,params,hue){
+  const p=R.player, total=ultDamage(gen,params), hits=params.hits||3, reach=params.reach||210, arc=(params.arc||170)*Math.PI/180;
+  const base=Math.atan2(p.facing.y,p.facing.x), dmg=total/hits;
+  for(let i=0;i<hits;i++){
+    const off=(i-(hits-1)/2)*0.16, a=base+off, life=0.24+i*0.025;
+    applyArcDamage(a,arc,reach,dmg,params.knock||1.5);
+    R.swings.push({x:p.x,y:p.y,ang:a,arc,reach:reach+i*8,life,maxLife:life,hue,wt:(gen&&gen.weapon)||'podao',follow:true});
+  }
+  R.shake=Math.max(R.shake,0.55);
+}
+function ultRoar(gen,params,hue){
+  const p=R.player, dmg=ultDamage(gen,params)*0.35, rad=params.radius||900, stun=params.stun||2.2, knock=params.knock||2.0;
+  for(const e of R.enemies){ if(e.dead)continue;
+    const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||1; if(d>rad+e.r)continue;
+    e.stunT=Math.max(e.stunT||0,e.isBoss?Math.min(1.0,stun*0.45):stun);
+    e.x+=dx/d*22*knock*(1-(e.knockRes||0)); e.y+=dy/d*22*knock*(1-(e.knockRes||0));
+    applyDamage(e,dmg,{critRate:R.buffs.crit||0,knock,kx:dx/d,ky:dy/d}); e.hitFlash=0.16;
+  }
+  R.novas.push({x:p.x,y:p.y,r:8,maxR:Math.min(260,rad*.35),life:0.42,maxLife:0.42,hue,dmg:0,knock:0,crit:0,hitSet:new Set()});
+}
+function ultDashes(gen,params,hue){
+  R.ultActs.push({type:'dashes',gen,hue,left:params.count||6,width:params.width||40,len:params.len||180,seg:0,
+    dmg:ultDamage(gen,params)/Math.max(1,params.count||6)*1.05});
+  R.player.ifr=Math.max(R.player.ifr||0,1.2);
+}
+function ultSpin(gen,params,hue){
+  const dur=params.dur||4, radius=params.radius||132;
+  R.ult.spin={t:dur,size:params.size||1.5,move:params.move||0.2};
+  R.ultActs.push({type:'spin',hue,radius,dmg:ultDamage(gen,params)/Math.max(8,dur/0.18),life:dur,tick:0,cool:new Map()});
+}
+function ultVolley(gen,params,hue){
+  const p=R.player, n=params.count||28, total=ultDamage(gen,params), dmg=total/Math.max(7,n*0.35), pierce=params.pierce==null?3:params.pierce;
+  const fan=!!params.fan, base=Math.atan2(p.facing.y,p.facing.x), spread=fan?Math.PI*1.15:TAU;
+  for(let i=0;i<n;i++){
+    const a=fan ? base-spread/2+spread*(i/Math.max(1,n-1)) : i/n*TAU;
+    R.proj.push({x:p.x,y:p.y,vx:Math.cos(a)*780,vy:Math.sin(a)*780,r:12,dmg,crit:R.buffs.crit||0,knock:0.7,
+      pierce,hit:new Set(),life:1.15,hue:60,ptype:'arrow',spd:780,range:740,t:0,phase:0});
+  }
+}
+function ultSnipe(gen,params,hue){
+  const p=R.player, targets=strongTargets(params.count||3), dmg=ultDamage(gen,params)/Math.max(1,targets.length);
+  for(const e of targets){
+    applyDamage(e,dmg,{crit:true,knock:1.0,kx:(e.x-p.x)/(Math.hypot(e.x-p.x,e.y-p.y)||1),ky:(e.y-p.y)/(Math.hypot(e.x-p.x,e.y-p.y)||1)});
+    e.hitFlash=0.25; bossCounter(e);
+    R.ultFx.push({type:'line',x1:p.x,y1:p.y,x2:e.x,y2:e.y,hue:55,life:0.22,maxLife:0.22});
+    pushPart(e.x,e.y,'#ffe082',18,180);
+  }
+}
+function ultFirestorm(gen,params,hue){
+  const count=params.count||11, total=ultDamage(gen,params), life=params.dur||3.4, r=params.radius||56;
+  const targets=strongTargets(Math.ceil(count*0.45));
+  for(let i=0;i<count;i++){
+    const t=targets[i%Math.max(1,targets.length)];
+    const x=t?(t.x+rnd(-45,45)):(R.cam.x+rnd(-CW*0.45,CW*0.45));
+    const y=t?(t.y+rnd(-45,45)):(R.cam.y+rnd(-CH*0.40,CH*0.40));
+    R.zones.push({x,y,r,life,maxLife:life,tick:0.28,nextTick:rnd(0,0.18),dmg:total/(count*5.5),crit:R.buffs.crit||0,hue:18,cool:new Map()});
+  }
+}
+function ultFirewall(gen,params,hue){
+  const p=R.player, a=Math.atan2(p.facing.y,p.facing.x);
+  R.ultActs.push({type:'firewall',x:p.x+Math.cos(a)*60,y:p.y+Math.sin(a)*60,a,hue:18,life:params.dur||3.8,
+    width:params.width||140,speed:params.speed||150,tick:0,dmg:ultDamage(gen,params)/18});
+}
+function ultBolt(gen,params,hue){
+  R.ultActs.push({type:'bolt',hue:50,left:params.count||8,radius:params.radius||64,next:0,dmg:ultDamage(gen,params)/Math.max(1,params.count||8),life:3.4});
+}
+function ultTimeslow(gen,params,hue){
+  const cleared=R.eproj.length; R.eproj.length=0;
+  R.ult.enemySlowT=Math.max(R.ult.enemySlowT||0,params.dur||4.0);
+  R.ult.enemySlowAmt=Math.max(R.ult.enemySlowAmt||0,params.slow||0.58);
+  pushText(R.player.x,R.player.y-42,'敵弾消滅 '+cleared,'#b39ddb',1.2,18);
+  R.flash=Math.max(R.flash,0.5); R.shake=Math.max(R.shake,0.35);
+}
+function ultBerserk(gen,params,hue){
+  const p=R.player;
+  if(params.hpCost){ const c=Math.max(1,p.maxHp*params.hpCost); p.hp=Math.max(1,p.hp-c); pushText(p.x,p.y-34,'血を代価に','#ff8a80',1.1,16); }
+  const lost=1-p.hp/p.maxHp, add=(params.lostHpDmg||0)*lost;
+  if(params.heal){ const h=Math.round(p.maxHp*params.heal); p.hp=Math.min(p.maxHp,p.hp+h); }
+  R.ult.berserk={t:params.dur||4.2,dmg:(params.dmg||0.45)+add,cd:params.cd||0.82,move:params.move||0.12,lifesteal:params.lifesteal||0};
+  pushPart(p.x,p.y,'#ff7043',36,250);
+}
+function ultRaid(gen,params,hue){
+  const n=params.count||6, dur=params.dur||3.2, total=ultDamage(gen,params), riders=[];
+  const dir=R.player.facing.x<0?-1:1, sx=R.cam.x-dir*(CW/2+80);
+  for(let i=0;i<n;i++) riders.push({x:sx-rnd(0,110)*dir,y:R.cam.y-CH*0.35+(i+0.5)*CH*0.7/n+rnd(-18,18),vx:dir*rnd(280,350),hit:new Set(),phase:rnd(10)});
+  R.ultActs.push({type:'raid',gen,hue,life:dur,riders,dmg:total/Math.max(4,n*0.7)});
+}
+function ultHealRally(gen,params,hue){
+  const p=R.player, h=Math.round(p.maxHp*(params.heal||0.25));
+  p.hp=Math.min(p.maxHp,p.hp+h);
+  R.ult.shield={t:params.dur||4.0,absorb:p.maxHp*(params.shield||0.18),max:p.maxHp*(params.shield||0.18)};
+  pushText(p.x,p.y-44,'回復 +'+h,'#69f0ae',1.4,20);
+  pushPart(p.x,p.y,'#69f0ae',32,210);
+}
+
 // ── ダメージ適用 ───────────────────────────
+function queueDamageText(e,d,crit){
+  const q=e._dmgText||(e._dmgText={sum:0,crit:false,t:0.25,x:e.x,y:e.y});
+  q.sum+=d; q.crit=!!(q.crit||crit); q.t=0.25; q.x=e.x+rnd(-5,5); q.y=e.y-e.r-4;
+}
+function flushDamageText(e){
+  const q=e&&e._dmgText; if(!q||q.sum<=0)return;
+  pushText(q.x,q.y,q.sum|0,(q.crit?'#ffe082':'#fff'),q.crit?1.35:1.0,q.crit?19:14);
+  q.sum=0; q.crit=false; q.t=0.25;
+}
 function applyDamage(e, dmg, opts){
   opts=opts||{};
   if(e.dead)return;
@@ -246,11 +446,13 @@ function applyDamage(e, dmg, opts){
   if(e.dr) d*= (1-e.dr);
   d=Math.max(1,Math.round(d));
   e.hp-=d;
+  if(R.ult&&R.ult.berserk&&R.ult.berserk.t>0&&R.ult.berserk.lifesteal){
+    R.player.hp=Math.min(R.player.maxHp,R.player.hp+d*R.ult.berserk.lifesteal);
+  }
   // ノックバック
   if(opts.knock&&opts.kx!==undefined){const kr=(1-(e.knockRes||0))*opts.knock*9;e.x+=opts.kx*kr;e.y+=opts.ky*kr;}
-  // ダメージ表示(間引き)
-  if(Math.random()<(crit?1:0.5)) pushText(e.x+rnd(-6,6),e.y-e.r-4,d,(crit?'#ffe082':'#fff'),crit?1.25:0.95,crit?17:13);
-  if(e.hp<=0) killEnemy(e);
+  queueDamageText(e,d,crit);
+  if(e.hp<=0){ flushDamageText(e); killEnemy(e); }
 }
 G.applyDamage=applyDamage;
 
@@ -262,6 +464,7 @@ function killEnemy(e){
   R.player.goldFrac += (e.gold||1)*window.ECON.killGold*(1+(R.buffs.gold||0))*(1+R.curse*0.6);
   // 経験値ジェム
   R.gems.push({x:e.x,y:e.y,xp:e.xp||1,vx:0,vy:0,mag:false});
+  chargeUlt(e.elite?((window.ULTS&&window.ULTS.KILL&&window.ULTS.KILL.elite)||15):((window.ULTS&&window.ULTS.KILL&&window.ULTS.KILL.grunt)||1));
   // bomberは爆発
   if(e.explode){ makeEnemyExplosion(e.x,e.y,e.explode); }
   // 精鋭は壺をドロップしやすい
@@ -354,6 +557,7 @@ function spawnBoss(){
 }
 function onBossDead(e){
   e.dead=true; R.boss=null;
+  chargeUlt((window.ULTS&&window.ULTS.KILL&&window.ULTS.KILL.boss)||40);
   pushPart(e.x,e.y,'hsl('+e.hue+',70%,60%)',40,260);
   R.flash=0.7; R.shake=0.6; R.hitstop=Math.max(R.hitstop||0,.13); window.SFX&&SFX.play('bossDead');
   R.player.goldFrac += (R.stage.no*40)*(1+(R.buffs.gold||0));
@@ -503,6 +707,7 @@ function update(dt){
   updateDoomFx(realDt);
   dt*=(R.timeScale==null?1:R.timeScale);
   const p=R.player;
+  updateUlt(realDt,dt);
   if(p.atkT>0)p.atkT-=realDt;
   // 入力→移動
   let ix=0,iy=0;
@@ -511,7 +716,7 @@ function update(dt){
   if(touch.active){ix+=touch.dx;iy+=touch.dy;}
   const im=Math.hypot(ix,iy);
   if(im>0.01){ ix/=Math.max(1,im); iy/=Math.max(1,im); p.facing.x=ix;p.facing.y=iy; }
-  const spd=130*R.lord.baseMove*(1+(R.buffs.move||0));
+  const spd=130*R.lord.baseMove*(1+(R.buffs.move||0))*((R.ult&&R.ult.moveMul)||1);
   p.x+=ix*spd*dt; p.y+=iy*spd*dt;
   // カメラ追従
   R.cam.x+=(p.x-R.cam.x)*Math.min(1,dt*8); R.cam.y+=(p.y-R.cam.y)*Math.min(1,dt*8);
@@ -573,6 +778,7 @@ function update(dt){
     }
   }
   // テキスト/粒子
+  for(const e of R.enemies){ if(e._dmgText&&e._dmgText.sum>0){ e._dmgText.t-=realDt; if(e._dmgText.t<=0)flushDamageText(e); } }
   for(const t of R.texts){t.y+=t.vy*dt;t.life-=dt;} R.texts=R.texts.filter(t=>t.life>0);
   for(const pa of R.parts){pa.x+=pa.vx*dt;pa.y+=pa.vy*dt;pa.vx*=0.92;pa.vy*=0.92;pa.life-=dt;} R.parts=R.parts.filter(pa=>pa.life>0);
   // 死亡敵除去
@@ -583,6 +789,80 @@ function update(dt){
     else gameOver();
   }
   G.onHud&&G.onHud();
+}
+
+function updateUlt(realDt,dt){
+  if(!R.ult)return;
+  const u=R.ult, p=R.player;
+  u.moveMul=1;
+  if(u.berserk&&u.berserk.t>0){ u.berserk.t-=realDt; u.moveMul*=1+(u.berserk.move||0); if(u.berserk.t<=0)u.berserk=null; }
+  if(u.spin&&u.spin.t>0){ u.spin.t-=realDt; u.moveMul*=1+(u.spin.move||0); if(u.spin.t<=0)u.spin=null; }
+  if(u.shield&&u.shield.t>0){ u.shield.t-=realDt; if(u.shield.t<=0||u.shield.absorb<=0)u.shield=null; }
+  if(u.enemySlowT>0){ u.enemySlowT-=realDt; if(u.enemySlowT<=0){ u.enemySlowT=0; u.enemySlowAmt=0; } }
+  const hpRate=p.hp/p.maxHp;
+  if(hpRate<0.30&&!R.over){ u.heartBeat-=realDt; if(u.heartBeat<=0){ u.heartBeat=hpRate<0.15?0.55:0.95; window.SFX&&SFX.play('hurt'); } }
+  else u.heartBeat=0;
+  if(u.auto&&u.gauge>=u.max&&!u.casting) triggerUlt();
+
+  const alive=[];
+  for(const a of R.ultActs){
+    if(a.type==='dashes'){ updateUltDashes(a,realDt); if(a.left>0||a.seg>0)alive.push(a); }
+    else if(a.type==='spin'){ updateUltSpin(a,realDt); if(a.life>0)alive.push(a); }
+    else if(a.type==='firewall'){ updateUltFirewall(a,realDt); if(a.life>0)alive.push(a); }
+    else if(a.type==='bolt'){ updateUltBolt(a,realDt); if(a.life>0&&(a.left>0||a.next>0))alive.push(a); }
+    else if(a.type==='raid'){ updateUltRaid(a,realDt); if(a.life>0)alive.push(a); }
+  }
+  R.ultActs=alive;
+  for(const fx of R.ultFx)fx.life-=realDt;
+  R.ultFx=R.ultFx.filter(fx=>fx.life>0);
+}
+function startUltDash(a){
+  const p=R.player, t=nearestEnemy(p.x,p.y,720), ang=t?Math.atan2(t.y-p.y,t.x-p.x):Math.atan2(p.facing.y,p.facing.x);
+  const sp=1120; a.vx=Math.cos(ang)*sp; a.vy=Math.sin(ang)*sp; a.seg=Math.max(0.10,(a.len||180)/sp); a.left--; a.hit=new Set(); a.ang=ang;
+  R.dashes.push({x:p.x,y:p.y,vx:a.vx,vy:a.vy,len:a.len||180,traveled:0,w:a.width||40,dmg:a.dmg*0.45,crit:R.buffs.crit||0,knock:1.1,hit:new Set(),life:a.seg+0.05,hue:a.hue,trail:0});
+}
+function updateUltDashes(a,dt){
+  if(a.seg<=0){ if(a.left<=0)return; startUltDash(a); }
+  const p=R.player; a.seg-=dt; p.ifr=Math.max(p.ifr||0,0.24);
+  p.x+=a.vx*dt; p.y+=a.vy*dt;
+  if(Math.random()<0.72)R.parts.push({x:p.x-rnd(-5,5),y:p.y-rnd(-5,5),vx:-a.vx*0.015+rnd(-30,30),vy:-a.vy*0.015+rnd(-30,30),life:0.22,col:'hsl('+a.hue+',85%,68%)',r:rnd(2,4)});
+  forEachNear(p.x,p.y,(a.width||40)+26,e=>{ if(e.dead||a.hit.has(e))return; if(dist2(p.x,p.y,e.x,e.y)<((a.width||40)+e.r)*((a.width||40)+e.r)){
+    const d=Math.hypot(a.vx,a.vy)||1; applyDamage(e,a.dmg,{critRate:R.buffs.crit||0,knock:1.1,kx:a.vx/d,ky:a.vy/d}); e.hitFlash=0.12; bossCounter(e); a.hit.add(e); } });
+}
+function updateUltSpin(a,dt){
+  a.life-=dt; a.tick-=dt;
+  if(a.tick>0)return;
+  a.tick=0.16;
+  const p=R.player;
+  forEachNear(p.x,p.y,a.radius+35,e=>{ if(e.dead)return; const last=a.cool.get(e)||0; if(R.t-last<0.28)return;
+    if(dist2(p.x,p.y,e.x,e.y)<(a.radius+e.r)*(a.radius+e.r)){ a.cool.set(e,R.t); const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||1;
+      applyDamage(e,a.dmg,{critRate:R.buffs.crit||0,knock:1.4,kx:dx/d,ky:dy/d}); e.hitFlash=0.10; bossCounter(e); } });
+}
+function updateUltFirewall(a,dt){
+  a.life-=dt; a.x+=Math.cos(a.a)*a.speed*dt; a.y+=Math.sin(a.a)*a.speed*dt; a.tick-=dt;
+  if(a.tick>0)return; a.tick=0.16;
+  const nx=Math.cos(a.a), ny=Math.sin(a.a), px=-ny, py=nx;
+  forEachNear(a.x,a.y,a.width+70,e=>{ if(e.dead)return; const dx=e.x-a.x,dy=e.y-a.y, front=dx*nx+dy*ny, side=dx*px+dy*py;
+    if(Math.abs(front)<42+e.r&&Math.abs(side)<a.width/2+e.r){ applyDamage(e,a.dmg,{critRate:R.buffs.crit||0,knock:0.8,kx:nx,ky:ny}); e.hitFlash=0.08; } });
+}
+function updateUltBolt(a,dt){
+  a.life-=dt; a.next-=dt;
+  while(a.left>0&&a.next<=0){ a.next+=0.24; a.left--; strikeUltBolt(a); }
+}
+function strikeUltBolt(a){
+  const targets=strongTargets(8), t=targets.length?targets[rint(0,targets.length-1)]:null;
+  const x=t?t.x:R.cam.x+rnd(-CW*.35,CW*.35), y=t?t.y:R.cam.y+rnd(-CH*.35,CH*.35);
+  R.ultFx.push({type:'bolt',x,y,hue:a.hue,life:0.24,maxLife:0.24});
+  forEachNear(x,y,a.radius+30,e=>{ if(e.dead)return; if(dist2(x,y,e.x,e.y)<(a.radius+e.r)*(a.radius+e.r)){ applyDamage(e,a.dmg,{critRate:R.buffs.crit||0,knock:0.6,kx:(e.x-x)/(Math.hypot(e.x-x,e.y-y)||1),ky:(e.y-y)/(Math.hypot(e.x-x,e.y-y)||1)}); e.hitFlash=0.16; } });
+  pushPart(x,y,'#fff59d',14,200); R.shake=Math.max(R.shake,0.18);
+}
+function updateUltRaid(a,dt){
+  a.life-=dt;
+  for(const r of a.riders){
+    r.phase+=dt*8; r.x+=r.vx*dt;
+    forEachNear(r.x,r.y,54,e=>{ if(e.dead||r.hit.has(e))return; if(dist2(r.x,r.y,e.x,e.y)<(54+e.r)*(54+e.r)){
+      applyDamage(e,a.dmg,{critRate:R.buffs.crit||0,knock:1.5,kx:Math.sign(r.vx),ky:0}); e.hitFlash=0.1; bossCounter(e); r.hit.add(e); } });
+  }
 }
 
 function updateDoomFx(dt){
@@ -650,9 +930,11 @@ function updateEnemies(dt){
   for(const e of R.enemies){
     if(e.dead)continue;
     if(e.hitFlash>0)e.hitFlash-=dt;
+    if(e.stunT>0){ e.stunT-=dt; if(e.stunT<0)e.stunT=0; continue; }
     if(e.slowT>0)e.slowT-=dt;
     const field=(fieldR2 && dist2(p.x,p.y,e.x,e.y)<fieldR2)?(1-fieldAmt):1;
-    const sf=(e.slowT>0?(1-(e.slowAmt||0)):1)*field;
+    const ultSlow=(R.ult&&R.ult.enemySlowT>0)?(1-(R.ult.enemySlowAmt||0)):1;
+    const sf=(e.slowT>0?(1-(e.slowAmt||0)):1)*field*ultSlow;
     if(e.isBoss){ updateBoss(e,dt); }
     else {
       const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1;
@@ -701,6 +983,9 @@ function hitPlayer(dmg){
   let drB=R.buffs.dr||0;
   if(R.lord.sig&&R.lord.sig.lastStand){ drB += (1-R.player.hp/R.player.maxHp)*R.lord.sig.lastStand; }  // 司馬懿「堅忍」: HPが減るほど硬くなる
   let d=dmg*(1-Math.min(0.85,drB));
+  const sh=R.ult&&R.ult.shield;
+  if(sh&&sh.t>0&&sh.absorb>0){ const block=Math.min(d,sh.absorb); sh.absorb-=block; d-=block; if(block>0){ R.flash=Math.max(R.flash,0.12); pushPart(R.player.x,R.player.y,'#9fffc2',4,110); } }
+  if(d<=0)return;
   R.player.hp-=d; R.flash=0.25; R.shake=0.3; window.SFX&&SFX.play('hurt');
   pushPart(R.player.x,R.player.y,'#ff5252',6,140);
   if(R.lord.sig&&R.lord.sig.ragePulse){  // 董卓「暴虐」: 被弾するたび周囲を吹き飛ばす衝撃波
@@ -875,6 +1160,7 @@ function render(){
   for(const pr of R.proj)drawProj(pr);
   for(const n of R.novas)drawNova(n);
   for(const d of R.dashes)drawDash(d);
+  drawUltEffects();
   drawDoomArrows();
   // 敵弾
   for(const b of R.eproj){
@@ -1041,6 +1327,49 @@ function drawZone(z){
   if(z.hue<40){ for(let i=0;i<10;i++){ const ang=(i*0.61+R.t*1.7)%TAU, rr=z.r*(0.15+((i*17)%70)/100); const spr=window.Sprites.proj('fire',z.hue,0,(i+R.t*8)|0); const sz=12; ctx.drawImage(spr,z.x+Math.cos(ang)*rr-sz/2,z.y+Math.sin(ang)*rr-sz/2,sz,sz); } }
   ctx.globalAlpha=1; }
 
+function drawUltEffects(){
+  if(!R.ult)return;
+  const p=R.player;
+  if(R.ult.shield&&R.ult.shield.t>0){
+    const k=Math.max(0,Math.min(1,R.ult.shield.absorb/(R.ult.shield.max||1))), pulse=0.5+0.5*Math.sin(R.t*10);
+    ctx.globalAlpha=0.14+0.16*pulse*k; ctx.fillStyle='#69f0ae'; ctx.beginPath();ctx.arc(p.x,p.y,34+8*pulse,0,TAU);ctx.fill();
+    ctx.globalAlpha=0.65*k; ctx.strokeStyle='#b9ffd1'; ctx.lineWidth=3; ctx.beginPath();ctx.arc(p.x,p.y,38+4*pulse,0,TAU);ctx.stroke(); ctx.globalAlpha=1;
+  }
+  for(const a of R.ultActs){
+    if(a.type==='spin'){
+      const pulse=0.5+0.5*Math.sin(R.t*16), cnt=48;
+      ctx.globalAlpha=0.22+0.12*pulse; ctx.strokeStyle='hsl('+a.hue+',90%,66%)'; ctx.lineWidth=4; ctx.beginPath();ctx.arc(p.x,p.y,a.radius,0,TAU);ctx.stroke();
+      ctx.globalAlpha=0.75; ctx.fillStyle='hsl('+a.hue+',94%,72%)';
+      for(let i=0;i<cnt;i+=2){ const aa=i*TAU/cnt+R.t*5, sz=4+(i%4); ctx.fillRect(p.x+Math.cos(aa)*a.radius-sz/2,p.y+Math.sin(aa)*a.radius-sz/2,sz,sz); }
+      ctx.globalAlpha=1;
+    } else if(a.type==='firewall'){
+      const nx=Math.cos(a.a), ny=Math.sin(a.a), px=-ny, py=nx, n=32;
+      ctx.globalAlpha=0.24; ctx.fillStyle='hsl(15,95%,45%)'; ctx.save(); ctx.translate(a.x,a.y); ctx.rotate(a.a); ctx.fillRect(-36,-a.width/2,72,a.width); ctx.restore();
+      ctx.globalAlpha=0.92;
+      for(let i=0;i<n;i++){ const off=-a.width/2+a.width*i/(n-1), wob=Math.sin(R.t*8+i)*10, x=a.x+px*off+nx*wob, y=a.y+py*off+ny*wob;
+        const spr=window.Sprites.proj('fire',18,0,(R.t*10+i)|0), sz=18+(i%4)*3; ctx.drawImage(spr,x-sz/2,y-sz/2,sz,sz); }
+      ctx.globalAlpha=1;
+    } else if(a.type==='raid'){
+      for(const r of a.riders){
+        const spr=window.Sprites.hero(a.gen,((R.t*9+r.phase)|0)&1,false), size=46, h=size*spr.height/spr.width;
+        ctx.save(); if(r.vx<0){ ctx.translate(r.x,r.y); ctx.scale(-1,1); ctx.drawImage(spr,-size/2,-h/2,size,h); } else ctx.drawImage(spr,r.x-size/2,r.y-h/2,size,h); ctx.restore();
+        ctx.globalAlpha=0.38; ctx.fillStyle='hsl('+a.hue+',85%,70%)'; ctx.fillRect(r.x-Math.sign(r.vx)*28,r.y+13,34,4); ctx.globalAlpha=1;
+      }
+    }
+  }
+  for(const fx of R.ultFx){
+    const k=Math.max(0,fx.life/(fx.maxLife||0.2));
+    if(fx.type==='line'){
+      ctx.globalAlpha=k; ctx.strokeStyle='hsl('+fx.hue+',96%,72%)'; ctx.lineWidth=5; ctx.beginPath();ctx.moveTo(fx.x1,fx.y1);ctx.lineTo(fx.x2,fx.y2);ctx.stroke();
+      ctx.globalAlpha=k; ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath();ctx.moveTo(fx.x1,fx.y1);ctx.lineTo(fx.x2,fx.y2);ctx.stroke();
+    } else if(fx.type==='bolt'){
+      ctx.globalAlpha=k; ctx.strokeStyle='#fff59d'; ctx.lineWidth=6; ctx.beginPath();ctx.moveTo(fx.x-10,fx.y-260);ctx.lineTo(fx.x+8,fx.y-130);ctx.lineTo(fx.x-5,fx.y);ctx.stroke();
+      ctx.globalAlpha=k*0.55; ctx.fillStyle='#fff59d'; ctx.beginPath();ctx.arc(fx.x,fx.y,36*(1-k)+14,0,TAU);ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
 function drawDoomWorld(){
   if(!(R.scene&&R.scene.kind==='doom'))return;
   const rem=R.scene.dur-R.t;
@@ -1084,7 +1413,7 @@ function doomZoom(){
 }
 
 // 公開(HUD用)
-G.hudData=()=>{ if(!R)return null; return {hp:R.player.hp,maxHp:R.player.maxHp,level:R.player.level,xp:R.player.xp,xpNext:R.player.xpNext,t:R.t,kills:R.player.kills,gold:Math.floor(R.player.goldFrac),weapons:R.weapons,passives:R.passives,boss:R.boss,stage:R.stage,sceneName:(R.scene&&R.scene.name)||''}; };
+G.hudData=()=>{ if(!R)return null; return {hp:R.player.hp,maxHp:R.player.maxHp,level:R.player.level,xp:R.player.xp,xpNext:R.player.xpNext,t:R.t,kills:R.player.kills,gold:Math.floor(R.player.goldFrac),weapons:R.weapons,passives:R.passives,boss:R.boss,stage:R.stage,sceneName:(R.scene&&R.scene.name)||'',ult:R.ult}; };
 G.pauseToggle=(v)=>{ if(R)R.paused=v; };
 
 })();

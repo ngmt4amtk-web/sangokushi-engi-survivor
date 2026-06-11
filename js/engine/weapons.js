@@ -5,6 +5,7 @@ const G=window.G;
 const TAU=Math.PI*2;
 const rnd=(a=1,b=null)=> b===null?Math.random()*a:a+Math.random()*(b-a);
 const d2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;};
+const KNOCK_WEIGHT={podao:1.5,halberd:1.5,mace:1.5,axe:1.5,sword:0.7,twin:0.7,array:0.7,aura:0.7};
 
 function effStats(w,R){
   const wt=w.gen.weapon, base=window.WBASE[wt], gs=w.gen.stat, lvl=w.level, b=R.buffs;
@@ -16,7 +17,7 @@ function effStats(w,R){
   E.area= (base.area||0)*gs.area*window.WLEVEL.areaMul(lvl)*(1+(b.area||0))*tarea*(evo.area||1);
   E.cd  = base.cd*gs.cd*window.WLEVEL.cdMul(lvl)*(1-Math.min(0.7,(b.cd||0)))*(evo.cd||1);
   E.amount = Math.max(1, base.amount+(gs.amount-1)+window.WLEVEL.amountAdd(lvl,kind)+(b.amount||0)+(evo.amount||0));
-  E.knock = (base.knock||0)*gs.knock*(evo.knock||1);
+  E.knock = (base.knock||0)*gs.knock*(evo.knock||1)*(KNOCK_WEIGHT[wt]||1);
   E.crit = Math.min(0.85, 0.05+gs.crit+(b.crit||0)+(evo.crit||0));
   E.pierce = (base.pierce||0)+window.WLEVEL.pierceAdd(lvl)+(b.pierce||0)+(evo.pierce||0);
   E.life = (base.life||0)*(1+(b.duration||0))*(evo.life||1);
@@ -27,6 +28,15 @@ function effStats(w,R){
   E.orbitR=(base.orbitR||0)*(1+(b.area||0)*0.5)*(evo.orbitR||1); E.spin=base.spin||0;
   E.len=(base.len||0)*(evo.len||1); E.bsize=Math.max(6,(base.area||14)*0.5*(1+(b.area||0)*0.4));
   E.slow=(base.slow||0)+(evo.slowAdd||0); E.tick=base.tick||0.5; E.trail=evo.trail||0;
+  if(R.ult&&R.ult.berserk&&R.ult.berserk.t>0){
+    E.dmg*=1+(R.ult.berserk.dmg||0);
+    E.cd*=R.ult.berserk.cd||1;
+    E.knock*=1+(R.ult.berserk.knock||0);
+  }
+  if(R.ult&&R.ult.spin&&R.ult.spin.t>0&&kind==='orbit'){
+    const sz=R.ult.spin.size||1.45;
+    E.dmg*=1.2; E.area*=sz; E.reach*=sz; E.orbitR*=sz;
+  }
   if(w.fuseMul){ const m=w.fuseMul, ha=1+(m-1)*0.5;  // 合体武将: ダメージ全乗・範囲/射程/旋回は半分乗せ
     E.dmg*=m; E.area*=ha; E.reach*=ha; E.orbitR*=ha; }
   return E;
