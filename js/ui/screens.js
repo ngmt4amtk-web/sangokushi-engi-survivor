@@ -816,7 +816,7 @@ function renderRead(){
     ${clearedN===0?'<div class="read-empty">まだ物語が開いていない。<br>戦いに勝つと、その回がここで読めるようになる。</div>':''}
     <div class="read-list">${rows}</div>`;
   $('#rd-back').onclick=()=>{ renderTitle(); show('s-title'); };
-  c.querySelectorAll('.rcard[data-no]').forEach(card=>{ card.onclick=()=>loadChapter(+card.dataset.no); });
+  c.querySelectorAll('.rcard[data-no]').forEach(card=>{ card.onclick=()=>window.Reader.open(+card.dataset.no); });
 }
 async function loadChapter(no){
   const c=$('#s-read .content');

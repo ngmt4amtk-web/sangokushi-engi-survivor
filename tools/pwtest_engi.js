@@ -138,6 +138,65 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
   const codexChk=await page.evaluate(()=>({ cells:document.querySelectorAll('.dex .cell').length, unlocked:document.querySelectorAll('.dex .cell:not(.locked)').length }));
   console.log('CODEX', JSON.stringify(codexChk));
 
+  // ── 演義を読む: ノベルゲーム式リーダー ──────────────────
+  await page.evaluate(()=>{ window.UI.renderTitle(); window.UI.show('s-title'); });
+  await page.waitForSelector('#b-read',{timeout:4000});
+  await page.click('#b-read');
+  await page.waitForSelector('.read-list',{timeout:4000});
+  await page.screenshot({path:SHOT+'09_read_list.png'});
+
+  // ch001.json の存在確認
+  const ch1Exists=await page.evaluate(async()=>{
+    try{ const r=await fetch('reader/ch001.json'); return r.ok; }catch(e){ return false; }
+  });
+  if(!ch1Exists){
+    console.warn('WARN: reader/ch001.json not found – reader test skipped');
+  } else {
+    // s1クリア済みなら「読む ▶」カードが存在するはず(テスト実行中はクリア済みのはず)
+    const readCard=await page.$('.rcard[data-no="1"]');
+    if(!readCard){
+      console.warn('WARN: .rcard[data-no="1"] not found – chapter 1 may not be cleared');
+    } else {
+      await readCard.click();
+      // #readerov.show を待つ
+      await page.waitForSelector('#readerov.show',{timeout:5000});
+      const readerChk=await page.evaluate(()=>{
+        const ov=document.getElementById('readerov');
+        const pager=document.getElementById('rdr-pager');
+        const pageEl=document.getElementById('rdr-page');
+        const m=pager?pager.textContent.match(/(\d+)\s*\/\s*(\d+)/):null;
+        return {
+          visible:ov&&ov.classList.contains('show'),
+          pageCount:m?+m[2]:0,
+          hasContent:!!(pageEl&&pageEl.textContent.trim()),
+        };
+      });
+      console.log('READER', JSON.stringify(readerChk));
+      if(readerChk.pageCount<=0) errors.push('READER: pageCount is 0');
+
+      await page.screenshot({path:SHOT+'10_reader_open.png'});
+
+      // 右側タップ × 2 (次ページ)
+      await page.click('#rdr-tap-right');
+      await page.waitForTimeout(180);
+      await page.click('#rdr-tap-right');
+      await page.waitForTimeout(180);
+      await page.screenshot({path:SHOT+'11_reader_page3.png'});
+
+      // 左側タップ × 1 (前ページ)
+      await page.click('#rdr-tap-left');
+      await page.waitForTimeout(180);
+      await page.screenshot({path:SHOT+'12_reader_page2.png'});
+
+      // ✕ で閉じる
+      await page.click('#rdr-close');
+      await page.waitForTimeout(200);
+      const readerClosed=await page.evaluate(()=>!document.getElementById('readerov').classList.contains('show'));
+      console.log('READER closed:', readerClosed);
+      if(!readerClosed) errors.push('READER: overlay still visible after close');
+    }
+  }
+
   console.log('\n=== ERRORS ('+errors.length+') ===');
   errors.forEach(e=>console.log(e));
   await browser.close();
