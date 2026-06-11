@@ -216,6 +216,8 @@ function maybeOnboard(S){
 let chap=null;
 function sceneStageOf(stage,sc){   // 章stageを土台に、そのシーンの主役/型/秒数/敵で上書き
   const st=Object.assign({},stage);
+  st.name=sc.name||stage.name;
+  st.chapterName=stage.name;
   st.dur=sc.dur;
   st.protagonist=[sc.proto];
   if(sc.roster) st.roster=sc.roster;
@@ -234,7 +236,7 @@ function playScene(){
   const last=chap.idx===chap.scenes.length-1;
   show(null); $('#hud').classList.add('show'); $('#pausebtn').style.display='block'; lastWsig='';
   G.startRun({lord, stage:sceneStageOf(chap.stage,sc), owned:S.owned, save:S, difficulty:selDiff, curse:selCurse,
-    scene:{kind:sc.kind, dur:sc.dur, last, deathLine:sc.deathLine, epitaph:sc.epitaph}});
+    scene:{kind:sc.kind, dur:sc.dur, name:sc.name||'', last, deathLine:sc.deathLine, epitaph:sc.epitaph}});
   sceneIntro(sc,gen);
 }
 function sceneIntro(sc,gen){
@@ -299,7 +301,7 @@ function updateHud(){
   const hpp=Math.max(0,d.hp/d.maxHp*100);
   $('#hpbar').style.width=hpp+'%';
   $('#hptxt').textContent=Math.ceil(d.hp)+' / '+d.maxHp;
-  $('#topinfo').innerHTML=fmtT(d.t)+'<small>'+d.stage.name+'</small>';
+  $('#topinfo').innerHTML=fmtT(d.t)+'<small>'+esc(d.sceneName||d.stage.name)+'</small>';
   $('#lvline').innerHTML='Lv <b>'+d.level+'</b>';
   $('#statline').innerHTML='☠ '+d.kills+'　軍功 <b>'+d.gold+'</b>';
   // 武器アイコン(SVG)。変化時のみ再構築

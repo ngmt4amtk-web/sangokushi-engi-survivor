@@ -67,7 +67,12 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
   // ボスにダメージが入るまで少し移動
   await page.keyboard.down('d');
   let won=false;
-  for(let i=0;i<20;i++){ await page.waitForTimeout(500); won=await page.evaluate(()=>!!document.getElementById('result').classList.contains('show')); if(won)break;
+  for(let i=0;i<40;i++){ await page.waitForTimeout(500); won=await page.evaluate(()=>!!document.getElementById('result').classList.contains('show')); if(won)break;
+    // シーン連結: 幕間/悲運の口上オーバーレイを進め、次幕も時間を進めて勝利強制
+    const il=await page.$('#sceneov.show #il-go'); const dg=il?null:await page.$('#sceneov.show #doom-go');
+    if(il||dg){ await (il||dg).click(); await page.waitForTimeout(500);
+      await page.evaluate(()=>{ const R=window.G.getR(); if(R&&!R.over){ const d=(R.scene&&R.scene.dur)||R.stage.dur; R.t=Math.max(R.t,d-0.01); R.nextBossT=Math.min(R.nextBossT,R.t-1); } });
+      continue; }
     await page.evaluate(()=>{ const R=window.G.getR(); if(R&&R.boss){ R.boss.x=R.player.x+30; R.boss.y=R.player.y; R.boss.hp=1; } else if(R&&!R.over){ R.nextBossT=R.t-1; } }); }
   await page.keyboard.up('d');
   console.log('RESULT shown:', won);

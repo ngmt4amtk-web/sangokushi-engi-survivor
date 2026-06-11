@@ -47,6 +47,7 @@ function update(dt,R){
 
 // 攻撃方向: 最寄りの敵を自動で狙う(idle時も群れに当たる)。敵が居なければ移動方向。
 function aimAngle(R){ const p=R.player; const t=G.nearestEnemy(p.x,p.y,680); if(t)return Math.atan2(t.y-p.y,t.x-p.x); return Math.atan2(p.facing.y,p.facing.x); }
+function markAttack(R,a){ const p=R.player; p.atkT=0.14; p.atkAng=a; }
 
 function fire(w,E,R){
   switch(E.kind){
@@ -62,6 +63,7 @@ function fire(w,E,R){
 function fireArc(E,R){
   const p=R.player, ang0=aimAngle(R);
   const full=E.arcDeg*Math.PI/180, n=(E.arcDeg>=360)?1:E.amount, reach=E.reach;
+  markAttack(R,ang0);
   for(let i=0;i<n;i++){
     const off=(E.arcDeg>=360)?0:(n>1?(i-(n-1)/2)*(full*0.85):0);
     const a=ang0+off;
@@ -70,7 +72,8 @@ function fireArc(E,R){
       if(E.arcDeg<360){ let da=Math.atan2(dy,dx)-a; da=Math.atan2(Math.sin(da),Math.cos(da)); if(Math.abs(da)>full/2)return; }
       G.applyDamage(e,E.dmg,{critRate:E.crit,knock:E.knock,kx:dx/(d||1),ky:dy/(d||1)}); e.hitFlash=0.08; G.bossCounter(e);
     });
-    R.swings.push({x:p.x,y:p.y,ang:a,arc:Math.min(full,TAU*0.99),reach,life:0.16,maxLife:0.16,hue:E.hue,follow:true});
+    const life=Math.max(0.18,E.life||0.16);
+    R.swings.push({x:p.x,y:p.y,ang:a,arc:Math.min(full,TAU*0.99),reach,life,maxLife:life,hue:E.hue,wt:E.wt,follow:true});
   }
 }
 
@@ -78,6 +81,7 @@ function fireProj(E,R){
   const p=R.player; let baseAng;
   if(E.aim==='nearest'){ const t=G.nearestEnemy(p.x,p.y,E.range||520); baseAng=t?Math.atan2(t.y-p.y,t.x-p.x):Math.atan2(p.facing.y,p.facing.x); }
   else baseAng=aimAngle(R);
+  markAttack(R,baseAng);
   const n=E.amount, spread=(E.spreadDeg||0)*Math.PI/180, sp=E.speed;
   for(let i=0;i<n;i++){
     let a=baseAng;
@@ -85,17 +89,19 @@ function fireProj(E,R){
     else if(n>1) a+= (i-(n-1)/2)*0.13;
     const life=E.boomerang?((E.range/sp)*2.4+0.6):((E.range||400)/sp+0.2);
     R.proj.push({x:p.x,y:p.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:E.bsize,dmg:E.dmg,crit:E.crit,knock:E.knock,
-      pierce:E.pierce,hit:new Set(),life,hue:E.hue,spd:sp,range:E.range||400,t:0,phase:0,boomerang:E.boomerang});
+      pierce:E.pierce,hit:new Set(),life,hue:E.hue,ptype:window.Sprites.projType(E.wt),spd:sp,range:E.range||400,t:0,phase:0,boomerang:E.boomerang});
   }
 }
 
 function fireNova(E,R){ const p=R.player;
+  markAttack(R,Math.atan2(p.facing.y,p.facing.x));
   R.novas.push({x:p.x,y:p.y,r:6,maxR:E.area,life:0.34,maxLife:0.34,hue:E.hue,dmg:E.dmg,knock:E.knock,crit:E.crit,hitSet:new Set()});
   G.pushPart(p.x,p.y,'hsl('+E.hue+',70%,60%)',8,180);
 }
 
 function fireDash(E,R){ const p=R.player; const sp=window.WBASE.charge.speed;
   const base=aimAngle(R); const cnt=Math.min(4,E.amount);
+  markAttack(R,base);
   for(let i=0;i<cnt;i++){ const a=base+(cnt>1?(i-(cnt-1)/2)*0.18:0);
     R.dashes.push({x:p.x,y:p.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,len:E.len,traveled:0,w:E.area,dmg:E.dmg,crit:E.crit,knock:E.knock,hit:new Set(),life:E.len/sp+0.1,hue:E.hue,trail:E.trail}); }
 }
@@ -107,6 +113,7 @@ function fireSummon(E,R){ const p=R.player; const cap=26;
 
 function fireZone(E,R){ const p=R.player; const t=G.nearestEnemy(p.x,p.y,420);
   const tx=t?t.x:p.x+p.facing.x*70, ty=t?t.y:p.y+p.facing.y*70;
+  markAttack(R,Math.atan2(ty-p.y,tx-p.x));
   const extra=Math.max(1,E.amount-window.WBASE.fire.amount+1);
   for(let i=0;i<extra;i++){ const ox=i?rnd(-E.area,E.area):0, oy=i?rnd(-E.area,E.area):0;
     R.zones.push({x:tx+ox,y:ty+oy,r:E.area,life:E.life,maxLife:E.life,tick:E.tick,nextTick:0,dmg:E.dmg,crit:E.crit,hue:E.hue,cool:new Map()}); }
@@ -120,7 +127,7 @@ function updateOrbit(w,E,dt,R){
       const last=w.tickMap.get(e)||0; if(R.t-last>=0.45){ w.tickMap.set(e,R.t);
         const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||1; G.applyDamage(e,E.dmg,{critRate:E.crit,knock:E.knock,kx:dx/d,ky:dy/d}); e.hitFlash=0.08; G.bossCounter(e);} } });
   }
-  w._orbit={n,rad,ang:w.ang,hue:E.hue,size};
+  w._orbit={n,rad,ang:w.ang,hue:E.hue,size,wt:E.wt};
 }
 
 function updateField(w,E,dt,R){
@@ -138,14 +145,21 @@ function updateField(w,E,dt,R){
 function draw(ctx,R){
   // 陣/オーラ(下地)
   for(const w of R.weapons){ if(w._field){ const p=R.player,f=w._field;
-    ctx.globalAlpha=0.12+0.06*Math.sin(R.t*5); ctx.fillStyle='hsl('+f.hue+',70%,55%)'; ctx.beginPath();ctx.arc(p.x,p.y,f.r,0,TAU);ctx.fill();
-    ctx.globalAlpha=0.45; ctx.strokeStyle='hsl('+f.hue+',85%,72%)'; ctx.lineWidth=2; ctx.beginPath();ctx.arc(p.x,p.y,f.r,0,TAU);ctx.stroke(); ctx.globalAlpha=1; w._field=null; } }
+    const pulse=0.5+0.5*Math.sin(R.t*5);
+    ctx.globalAlpha=0.08+0.04*pulse; ctx.fillStyle='hsl('+f.hue+',70%,42%)'; ctx.beginPath();ctx.arc(p.x,p.y,f.r,0,TAU);ctx.fill();
+    ctx.globalAlpha=0.40+0.18*pulse; ctx.fillStyle='hsl('+f.hue+',85%,70%)';
+    const n=44;
+    for(let i=0;i<n;i++){ const a=i*TAU/n+R.t*0.25, rr=f.r+((i&1)?3:-2), sz=(i%3===0)?5:3;
+      ctx.fillRect(p.x+Math.cos(a)*rr-sz/2,p.y+Math.sin(a)*rr-sz/2,sz,sz); }
+    ctx.globalAlpha=1; w._field=null; } }
   // 旋回刃
   for(const w of R.weapons){ if(w._orbit){ const p=R.player,o=w._orbit;
     for(let i=0;i<o.n;i++){ const a=o.ang+i*TAU/o.n, bx=p.x+Math.cos(a)*o.rad, by=p.y+Math.sin(a)*o.rad;
-      ctx.save(); ctx.translate(bx,by); ctx.rotate(a+Math.PI/2);
-      ctx.fillStyle='hsl('+o.hue+',85%,60%)'; ctx.fillRect(-3,-o.size,6,o.size*1.8);
-      ctx.fillStyle='#fff'; ctx.fillRect(-2,-o.size,4,4); ctx.restore(); }
+      const spr=window.Sprites.proj(o.wt==='halberd'?'halberd':'blade',o.hue,a+Math.PI/2,((R.t*10)|0)&1);
+      const size=Math.max(18,o.size*1.15), h=size*spr.height/spr.width;
+      ctx.drawImage(spr,bx-size/2,by-h/2,size,h);
+      ctx.globalAlpha=0.35; ctx.fillStyle='hsl('+o.hue+',85%,70%)';
+      ctx.fillRect(bx-Math.cos(a)*9-2,by-Math.sin(a)*9-2,4,4); ctx.globalAlpha=1; }
     w._orbit=null; } }
 }
 
