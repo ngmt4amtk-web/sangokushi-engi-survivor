@@ -4,6 +4,18 @@ window.G = window.G || {};
 (function(){
 const G = window.G;
 
+// ── テンポ・ビルド喜び調整定数 ────────────────
+// ここを変えるだけでゲーム全体のテンポが変わる。
+const PACE = {
+  spawnRateMul:  1.5,   // 敵スポーンレート倍率(全体)
+  spawnEarlyFloor: 1.0, // 開幕60秒の最低レート底上げ(この値以下にならない)
+  xpMul:         1.2,   // XP獲得倍率(武将を速く解放=ビルドの喜び)
+  playerMoveMul: 1.08,  // プレイヤー移動速度倍率
+  heroDrawMul:   0.88,  // 主役スプライト表示倍率(縮小)
+  enemyDrawMul:  0.88,  // 敵スプライト表示倍率(縮小)
+};
+G.PACE = PACE;
+
 // ── 乱数・数学 ─────────────────────────────
 const rnd = (a=1,b=null)=> b===null ? Math.random()*a : a+Math.random()*(b-a);
 const rint = (a,b)=> Math.floor(rnd(a,b+1));
@@ -627,7 +639,7 @@ G.quitRun=()=>{ if(R){R.running=false;R.over=true;} };
 
 // ── レベルアップ ───────────────────────────
 function gainXp(n){
-  R.player.xp+=n*(1+(R.buffs.xp||0))*1.8*R.diff.xp*(1+R.curse*0.8);  // ×1.8=経験値ノブ＋難易度＋天命の見返り(危険ほど成長)
+  R.player.xp+=n*(1+(R.buffs.xp||0))*1.8*PACE.xpMul*R.diff.xp*(1+R.curse*0.8);  // ×1.8=経験値ノブ＋難易度＋天命の見返り(危険ほど成長)。PACE.xpMulで×1.2
   let leveled=false;
   while(R.player.xp>=R.player.xpNext){
     R.player.xp-=R.player.xpNext; R.player.level++;
@@ -651,7 +663,23 @@ function buildChoices(){
   //    restrict(swarm/長坂型)では主役(protagonist)のみ=主役の1武器を一気に育てる設計。
   if(R.weapons.length<6){
     const equipIds=R.weapons.map(w=>w.gen.id);
-    const poolIds = R.stage.restrict ? (R.stage.protagonist||[]) : (R.stage.levelPool || R.stage.roster || []);
+    // restrict=trueでもprotagonistが複数(義兄弟等)なら全員をドラフト対象にする
+    // → 第1回で劉備プレイ中に関羽・張飛が候補に出る
+    let poolIds;
+    if(R.stage.restrict) {
+      const proto = R.stage.protagonist || [];
+      poolIds = proto.length >= 2 ? proto : proto;  // 複数なら全員そのまま使う
+    } else {
+      poolIds = R.stage.levelPool || R.stage.roster || [];
+    }
+    // poolIdが5人未満の章はgachaPoolからboss/elite以外を補充して最低5人確保
+    if(poolIds.length < 5 && R.stage.gachaPool) {
+      const fill = R.stage.gachaPool.filter(id =>
+        !poolIds.includes(id) &&
+        (() => { const g = window.GENERALS.find(x=>x.id===id); return g && g.rarity <= 4; })()
+      );
+      poolIds = poolIds.concat(fill).slice(0, Math.max(poolIds.length, 5));
+    }
     const baseAvail=window.GENERALS.filter(g=> poolIds.includes(g.id) && !equipIds.includes(g.id) && !(R.fusedConsumed&&R.fusedConsumed.has(g.id)));
     for(const g of baseAvail){ out.push({type:'wnew',gen:g,rarity:g.rarity,weight:[0,7,5,3,1.5,0.8][g.rarity]||1}); }
   }
@@ -716,7 +744,7 @@ function update(dt){
   if(touch.active){ix+=touch.dx;iy+=touch.dy;}
   const im=Math.hypot(ix,iy);
   if(im>0.01){ ix/=Math.max(1,im); iy/=Math.max(1,im); p.facing.x=ix;p.facing.y=iy; }
-  const spd=130*R.lord.baseMove*(1+(R.buffs.move||0))*((R.ult&&R.ult.moveMul)||1);
+  const spd=130*PACE.playerMoveMul*R.lord.baseMove*(1+(R.buffs.move||0))*((R.ult&&R.ult.moveMul)||1);  // PACE.playerMoveMulで×1.08
   p.x+=ix*spd*dt; p.y+=iy*spd*dt;
   // カメラ追従
   R.cam.x+=(p.x-R.cam.x)*Math.min(1,dt*8); R.cam.y+=(p.y-R.cam.y)*Math.min(1,dt*8);
@@ -727,7 +755,10 @@ function update(dt){
 
   // スポーン: 序盤からそこそこ群れ、時間で密度上限ごと伸ばす(後半は物量で殺しに来る)
   const cap=R.stage.endless? Math.min(130,40+Math.floor(R.t/45)*15) : Math.min(110,34+Math.floor(R.t/45)*14);
-  const rate=Math.min(cap, (R.stage.rate0*3.0 + (R.t/60)*(6.5 + R.stage.rateGrow*30))*(1+R.curse*0.6));
+  // PACE.spawnRateMul で全体倍率。開幕60秒は PACE.spawnEarlyFloor で底上げし最初の波から賑やか。
+  const _rateBase = R.stage.rate0*3.0 + (R.t/60)*(6.5 + R.stage.rateGrow*30);
+  const _earlyBoost = R.t < 60 ? Math.max(0, PACE.spawnEarlyFloor - _rateBase) : 0;
+  const rate=Math.min(cap, (_rateBase + _earlyBoost)*PACE.spawnRateMul*(1+R.curse*0.6));
   R.spawnAcc+=dt*rate*(R.boss?0.6:1);
   while(R.spawnAcc>=1){R.spawnAcc-=1; spawnEnemy();}
   // 精鋭
@@ -1188,7 +1219,7 @@ function drawGrid(bg){
   ctx.fillRect(R.cam.x-CW/2-96,R.cam.y-CH/2-96,CW+192,CH+192);
 }
 function blit(s,x,y,size,flip){ const h=size*s.height/s.width; ctx.save(); ctx.translate(x,y); if(flip)ctx.scale(-1,1); ctx.drawImage(s,-size/2,-h/2,size,h); ctx.restore(); }
-function enemyDrawScale(e){ return e.isBoss?1.8:((e.elite||e.big)?1.5:1.35); }
+function enemyDrawScale(e){ return (e.isBoss?1.8:((e.elite||e.big)?1.5:1.35))*PACE.enemyDrawMul; }  // PACE.enemyDrawMulで約12%縮小(雑兵28-32px級)
 function drawEnemy(e){
   // 画面外の雑魚は描画しない(終盤の大物量でも描画負荷を抑える)
   const ds=enemyDrawScale(e);
@@ -1231,7 +1262,7 @@ function drawPlayer(){
   const p=R.player; const g=(window.GENERALS&&window.GENERALS.find(x=>x.name===R.lord.start))||{id:R.lord.id,name:R.lord.name,weapon:'sword',faction:R.lord.faction};
   const attacking=p.atkT>0, atkAng=(p.atkAng!=null?p.atkAng:Math.atan2(p.facing.y,p.facing.x));
   const s=window.Sprites.hero(g,((R.t*8)|0)&1,attacking); const flip=(attacking?Math.cos(atkAng):p.facing.x)<0;
-  const fallen=R.doomFx&&R.doomFx.fallen, size=s.width*3.9;
+  const fallen=R.doomFx&&R.doomFx.fallen, size=s.width*3.9*PACE.heroDrawMul;  // PACE.heroDrawMulで約12%縮小(主役36-40px級)
   // 影
   ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath();ctx.ellipse(p.x,p.y+(fallen?18:17),fallen?26:22,fallen?8:7,0,0,TAU);ctx.fill();
   if(fallen){

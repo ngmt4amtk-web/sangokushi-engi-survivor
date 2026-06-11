@@ -455,3 +455,229 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 .sl-k.survive{background:rgba(217,178,90,.2);color:var(--gold2);}
 .sl-k.doom{background:rgba(178,58,44,.28);color:var(--redL);}
 .sl-t{font-size:11px;color:var(--txt2);flex:0 0 auto;}
+
+/* ════════ タイトル画面(新デザイン) ════════ */
+/* 旧 pseudo エンブレムを無効化(新デザインでは .tl-seal を使う) */
+#s-title .content::before{display:none;}
+/* タイトル画面レイアウト */
+#s-title .content{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;min-height:100vh;padding:20px 16px 60px;
+  gap:0;
+}
+.tl-logo-wrap{
+  display:flex;flex-direction:column;align-items:center;
+  margin-bottom:clamp(24px,6vh,48px);
+}
+/* 朱印 */
+.tl-seal{
+  width:76px;height:76px;line-height:72px;text-align:center;
+  font-family:var(--mincho);font-size:40px;font-weight:900;
+  color:#f0e2bf;
+  background:radial-gradient(circle at 50% 38%,#bf3e2f,#7c1c13);
+  border:2px solid #e7c98a;border-radius:14px;
+  box-shadow:0 6px 22px rgba(178,58,44,.44),inset 0 0 0 3px rgba(0,0,0,.18);
+  margin-bottom:16px;
+  flex-shrink:0;
+}
+/* 金箔ロゴ: 明朝・金グラデ */
+.tl-logo{
+  font-family:var(--mincho);
+  font-size:clamp(28px,8vw,52px);
+  font-weight:900;
+  text-align:center;
+  line-height:1.25;
+  letter-spacing:.12em;
+  background:linear-gradient(180deg,var(--gold2),var(--gold) 55%,#9a6a20);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 2px 7px rgba(217,178,90,.3));
+  margin:0;
+}
+/* 出陣ボタン(大) */
+.tl-sortie{
+  width:min(320px,84%);
+  padding:20px;
+  font-size:clamp(20px,5vw,28px);
+  font-family:var(--mincho);
+  letter-spacing:.18em;
+  margin-bottom:20px;
+}
+/* メニュー行(4つ横並び、モバイルでは2×2) */
+.tl-menu{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  width:min(320px,84%);
+  margin-bottom:clamp(16px,4vh,32px);
+}
+.tl-menu-btn{
+  padding:12px 6px;
+  font-size:14px;
+  font-family:var(--mincho);
+  margin:0;
+}
+/* 踏破カウンター(最下部) */
+.tl-progress{
+  font-size:13px;
+  color:var(--txt2);
+  letter-spacing:.08em;
+  margin-bottom:14px;
+}
+/* リセットボタン(最下端・目立たせない) */
+.tl-reset{
+  opacity:.45;
+  font-size:12px;
+  padding:8px;
+  width:min(240px,70%);
+  margin:0;
+}
+/* h1.logoのマージン上書き(旧デザイン用だった90pxをリセット) */
+#s-title h1.logo{margin-top:0;}
+
+/* ════════ 出陣準備画面(新デザイン) ════════ */
+/* s-lord: スクロール可能な全画面 */
+#s-lord{overflow-y:auto;}
+#s-lord .content{padding:0 0 80px;max-width:520px;margin:0 auto;}
+
+/* ヘッダー */
+.prep-head{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px 10px;
+  border-bottom:1px solid var(--line);
+  background:rgba(11,9,7,.82);
+  position:sticky;top:0;z-index:5;
+}
+.prep-back{
+  position:static;width:auto;margin:0;padding:8px 14px;font-size:13px;flex:0 0 auto;
+}
+.prep-title{display:flex;flex-direction:column;gap:2px;}
+.prep-no{font-family:var(--mincho);font-size:12px;color:var(--gold);letter-spacing:.12em;}
+.prep-name{font-family:var(--mincho);font-size:17px;font-weight:700;color:var(--txt);line-height:1.3;}
+
+/* 主役横並びドット絵エリア */
+.prep-heroes{
+  display:flex;flex-direction:row;
+  gap:12px;
+  justify-content:center;
+  padding:20px 16px 12px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.prep-hero{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:2px solid var(--line);border-radius:14px;
+  padding:12px 10px 10px;
+  cursor:pointer;
+  transition:.12s;
+  flex:0 0 auto;
+  min-width:80px;
+}
+.prep-hero:hover{border-color:var(--gold);transform:translateY(-2px);}
+.prep-hero.sel{
+  border-color:var(--gold);
+  box-shadow:0 0 0 1px var(--gold),0 0 18px rgba(217,178,90,.36);
+  background:linear-gradient(180deg,#3a2c10,var(--panel));
+}
+.prep-sprite-wrap{
+  line-height:0;
+  image-rendering:pixelated;
+  border-radius:8px;
+  background:#0c0a10;
+  padding:4px;
+  overflow:hidden;
+}
+.prep-sprite{
+  display:block;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.prep-hero-name{
+  font-family:var(--mincho);
+  font-size:15px;font-weight:800;
+  text-align:center;
+  margin-top:2px;
+}
+.prep-hero-rar{
+  font-size:10px;letter-spacing:-1px;
+  color:var(--gold2);
+}
+.prep-hero-ult{
+  font-size:10px;color:var(--txt2);
+  text-align:center;
+  line-height:1.4;
+  max-width:90px;
+  word-break:break-all;
+}
+
+/* 難易度pill */
+.prep-diff{
+  display:flex;gap:8px;
+  padding:0 16px 12px;
+  justify-content:center;
+}
+.prep-pill{
+  flex:1;max-width:110px;
+  padding:10px 4px;
+  border:2px solid var(--line);
+  border-radius:20px;
+  background:var(--panel2);
+  color:var(--txt2);
+  font-size:13px;font-weight:800;
+  cursor:pointer;transition:.1s;
+  font-family:var(--mincho);
+  letter-spacing:.06em;
+}
+.prep-pill:hover{border-color:var(--gold);color:var(--txt);}
+.prep-pill.sel{
+  border-color:var(--gold);
+  background:linear-gradient(180deg,#3a2c10,var(--panel));
+  color:var(--gold2);
+  box-shadow:0 0 0 1px var(--gold),0 0 12px rgba(217,178,90,.28);
+}
+
+/* 出陣ボタン(大) */
+.prep-sortie{
+  display:block;
+  width:calc(100% - 32px);
+  margin:8px 16px 0;
+  padding:18px;
+  font-size:22px;
+  font-family:var(--mincho);
+  letter-spacing:.2em;
+}
+
+/* ════════ タイプライター演出(幕間pre / storyPre) ════════ */
+.sb-typewriter{
+  max-width:560px;width:100%;
+  text-align:left;
+  padding:0 4px;
+}
+.tw-mark{
+  font-family:var(--mincho);
+  font-size:13px;
+  color:var(--gold);
+  letter-spacing:3px;
+  margin-bottom:18px;
+  text-align:center;
+}
+.tw-text{
+  font-family:'DotGothic16',var(--mincho),monospace;
+  font-size:15px;
+  color:#fff;
+  line-height:1.95;
+  text-align:justify;
+  white-space:pre-wrap;
+  background:transparent;
+  border:0;
+  padding:0;
+  margin:0;
+  min-height:5em;
+  letter-spacing:.02em;
+}
+/* sceneovの背景を真っ黒に(タイプライター用) */
+#sceneov.show:has(.sb-typewriter){
+  background:#000;
+}
+/* :has未対応ブラウザ向けクラスで対応 */
+#sceneov.tw-bg{background:#000 !important;}

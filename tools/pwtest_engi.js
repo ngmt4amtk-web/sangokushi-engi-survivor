@@ -24,26 +24,45 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
   }));
   console.log('DATA', JSON.stringify(dataChk));
 
-  // 出陣 → ステージ選択(s1)
-  await page.click('#b-play');
+  // 章選択 → s1を直接選択
+  await page.click('#b-stage');
   await page.waitForSelector('.scard[data-st="s1"]');
   await page.screenshot({path:SHOT+'02_stages.png'});
   await page.click('.scard[data-st="s1"]');
 
-  // 前半ストーリー
+  // 出陣準備画面(新フロー: .prep-hero / .prep-pill / #b-start)
   await page.waitForSelector('#b-start',{timeout:5000});
-  const preChk=await page.evaluate(()=>({
-    storyLen:document.querySelector('.story-text').textContent.length,
-    protos:document.querySelectorAll('.proto-card').length,
-    diffSel:document.querySelectorAll('.diff-btn.sel').length,
+  const prepChk=await page.evaluate(()=>({
+    heroes:document.querySelectorAll('.prep-hero').length,
+    pillSel:document.querySelectorAll('.prep-pill.sel').length,
+    hasSortieBtn:!!document.querySelector('#b-start'),
   }));
-  console.log('PRE', JSON.stringify(preChk));
-  await page.screenshot({path:SHOT+'03_prestory.png'});
+  console.log('PREP', JSON.stringify(prepChk));
+  await page.screenshot({path:SHOT+'03_prep.png'});
 
-  // 難易度ふつう確認 + 2番目の主役を選んでみる
-  const protoCards=await page.$$('.proto-card');
-  if(protoCards.length>1) await protoCards[1].click();
+  // 2番目の主役を選ぶ(いれば)
+  const heroCards=await page.$$('.prep-hero');
+  if(heroCards.length>1) await heroCards[1].click();
+  // 難易度「ふつう」を確認(デフォルト選択済みのはず)
   await page.click('#b-start');
+
+  // 章タイトルカード(自動1.6s/タップスキップ)→タイプライター(タップ2回)→戦闘 を根気よく進める
+  for(let i=0;i<25;i++){
+    const hud=await page.$('#hud.show');
+    if(hud) break;
+    const card=await page.$('#chaptercard.show');
+    if(card){ await page.click('#chaptercard'); await page.waitForTimeout(150); continue; }
+    const twShow=await page.$('#sceneov.show');
+    if(twShow){
+      await page.click('#sceneov'); // 1タップ目: 全文表示
+      await page.waitForTimeout(120);
+      const twShow2=await page.$('#sceneov.show');
+      if(twShow2) await page.click('#sceneov'); // 2タップ目: 開戦
+      await page.waitForTimeout(250);
+      continue;
+    }
+    await page.waitForTimeout(300);
+  }
 
   // 戦闘開始
   await page.waitForSelector('#hud.show',{timeout:5000});
@@ -68,9 +87,14 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
   await page.keyboard.down('d');
   let won=false;
   for(let i=0;i<40;i++){ await page.waitForTimeout(500); won=await page.evaluate(()=>!!document.getElementById('result').classList.contains('show')); if(won)break;
-    // シーン連結: 幕間/悲運の口上オーバーレイを進め、次幕も時間を進めて勝利強制
-    const il=await page.$('#sceneov.show #il-go'); const dg=il?null:await page.$('#sceneov.show #doom-go');
-    if(il||dg){ await (il||dg).click(); await page.waitForTimeout(500);
+    // シーン連結: 幕間タイプライター/悲運の口上オーバーレイを進め、次幕も時間を進めて勝利強制
+    const dg=await page.$('#sceneov.show #doom-go');
+    if(dg){ await dg.click(); await page.waitForTimeout(500);
+      await page.evaluate(()=>{ const R=window.G.getR(); if(R&&!R.over){ const d=(R.scene&&R.scene.dur)||R.stage.dur; R.t=Math.max(R.t,d-0.01); R.nextBossT=Math.min(R.nextBossT,R.t-1); } });
+      continue; }
+    // タイプライター(幕間pre): 2回タップでスキップ→開戦
+    const tw=await page.$('#sceneov.show .tw-text');
+    if(tw){ await page.click('#sceneov'); await page.waitForTimeout(120); await page.click('#sceneov'); await page.waitForTimeout(400);
       await page.evaluate(()=>{ const R=window.G.getR(); if(R&&!R.over){ const d=(R.scene&&R.scene.dur)||R.stage.dur; R.t=Math.max(R.t,d-0.01); R.nextBossT=Math.min(R.nextBossT,R.t-1); } });
       continue; }
     await page.evaluate(()=>{ const R=window.G.getR(); if(R&&R.boss){ R.boss.x=R.player.x+30; R.boss.y=R.player.y; R.boss.hp=1; } else if(R&&!R.over){ R.nextBossT=R.t-1; } }); }

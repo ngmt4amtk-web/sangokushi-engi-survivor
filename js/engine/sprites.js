@@ -87,6 +87,72 @@ window.Sprites = (function(){
     return out;
   }
 
+  // ── 手描きグリッドテンプレート（シルエットの核。文字=パレットキー） ──
+  const PAL_KEYS={K:'out',S:'skin',s:'skinD',H:'hair',A:'base',a:'dark',L:'light',T:'trim',t:'trimD',B:'boot',M:'hbase',m:'hdark',N:'mane',G:'gold'};
+  function stamp(x,grid,colors,ox,oy){
+    for(let r=0;r<grid.length;r++){const row=grid[r];
+      for(let i=0;i<row.length;i++){const ch=row[i]; if(ch==='.')continue;
+        x.fillStyle=colors[PAL_KEYS[ch]]||colors.out; x.fillRect(ox+i,oy+r,1,1);}}
+  }
+  const HERO_BODY=[ // 16幅×14行。帽子(rows0-4)/髭/武器は既存オーバーレイが上書き
+    '....KKKKKK......',
+    '...KHHHHHHK.....',
+    '..KHHHHHHHHK....',
+    '..KSSSSSSSSK....',
+    '..KSKSSSSKSK....',
+    '..KSSSSSSSSK....',
+    '..KsSSSSSSsK....',
+    '...KsSSSSsK.....',
+    '....KKKKKK......',
+    '...KLLAAAAK.....',
+    '..KSKLAAAAKSK...',
+    '..KKKAAAAAKKK...',
+    '....KAAAAaK.....',
+    '....KTTTTTK.....',
+  ];
+  const HERO_LEGS=[ // 2フレーム
+    ['....KaK.KaK.....','....KBK.KBK.....'],
+    ['...KaK...KaK....','...KBK...KBK....'],
+  ];
+  const SOLDIER_BODY=[ // 12幅×11行(兜込み)
+    '...KKKKKK...',
+    '..KTTTTTTK..',
+    '..KttttttK..',
+    '..KSSSSSSK..',
+    '..KSKSSKSK..',
+    '..KsSSSSsK..',
+    '...KKKKKK...',
+    '..KLAAAAaK..',
+    '.KSKAAAAKSK.',
+    '..KKAAAAKK..',
+    '...KAAAaK...',
+  ];
+  const SOLDIER_LEGS=[
+    ['...KaK.KaK..','...KBK.KBK..'],
+    ['..KaK...KaK.','..KBK...KBK.'],
+  ];
+  const HORSE_BODY=[ // 20幅×10行(右向き・首は太く、頭は前方やや下へ)
+    '..............KKK...',
+    '.............KMMMK..',
+    '..NN.......KKMMmMK..',
+    '.KNNK......KMMMmK...',
+    '.KNMK..KKKKNMMMK....',
+    '..KMKKMMMMMNMMK.....',
+    '..KMMMMMMMMMMMK.....',
+    '..KMMMMMMMMMMMK.....',
+    '...KMMMMMMMMMK......',
+    '...KmMMMMMMmK.......',
+  ];
+  const HORSE_LEGS=[
+    ['....KmK..KmK.KmK....','....KBK..KBK.KBK....'],
+    ['...KmK...KmK...KmK..','...KBK...KBK...KBK..'],
+  ];
+  function heroColors(pal,skin,trim){
+    return {out:OUT, skin:hsl(skin[0],skin[1]+5,skin[2]+4), skinD:hsl(Math.max(0,skin[0]-10),skin[1],skin[2]-12),
+      hair:'#2a1a12', base:pal.base, dark:pal.dark, light:pal.light||trim, trim:pal.gold||GOLD, trimD:hsl(40,60,38),
+      boot:'#2c1c12', gold:GOLD};
+  }
+
   // UI用バスト。既存画面互換のため残す。
   function general(g){
     const key='g'+g.id;
@@ -95,20 +161,23 @@ window.Sprites = (function(){
     const seed=hash(g.name+g.weapon);
     const fac=FAC[g.faction];
     const skin=SKIN[seed%3];
-    rect(x,0,0,S,S,hsl(fac.armorD[0],fac.armorD[1],fac.armorD[2]-14));
-    rect(x,5,20,18,8,hsl(fac.armor[0],fac.armor[1],fac.armor[2]));
-    rect(x,5,20,18,2,hsl(fac.trim[0],fac.trim[1],fac.trim[2]));
-    rect(x,7,24,2,4,hsl(fac.armorD[0],fac.armorD[1],fac.armorD[2]));
-    rect(x,19,24,2,4,hsl(fac.armorD[0],fac.armorD[1],fac.armorD[2]));
+    // フィールドスプライトと同じ lookFor パレットで描く(色一致)
+    const look=lookFor(g);
+    const pal=colorForHue(look.h, fac.armor[0]);
+    rect(x,0,0,S,S,hsl(fac.armorD[0],fac.armorD[1],Math.max(8,fac.armorD[2]-14)));
+    rect(x,5,20,18,8,pal.base);
+    rect(x,5,20,18,2,pal.light||hsl(fac.trim[0],fac.trim[1],fac.trim[2]));
+    rect(x,7,24,2,4,pal.dark);
+    rect(x,19,24,2,4,pal.dark);
     rect(x,11,17,6,4,hsl(skin[0],skin[1],skin[2]-8));
     rect(x,9,8,10,11,hsl(skin[0],skin[1],skin[2]));
     rect(x,9,8,10,2,hsl(skin[0],skin[1],skin[2]+8));
     rect(x,11,12,2,2,'#23170f'); rect(x,15,12,2,2,'#23170f');
-    const beard=seed%4, beardCol=hsl(20,30,18+(seed%3)*4);
-    if(g.weapon==='podao'||beard===0){ rect(x,9,16,10,3,beardCol); rect(x,11,19,6,3,beardCol); }
-    else if(beard===1){ rect(x,10,16,8,2,beardCol); }
-    else if(beard===2){ rect(x,12,16,4,2,beardCol); }
-    const cls=classOf(g.weapon);
+    const beardCol=look.b===3?'#e7e0cf':(look.beardHue!=null?hsl(look.beardHue,45,24):hsl(20,30,18+(seed%3)*4));
+    if(look.b===2&&look.longBeard){ rect(x,9,16,10,3,beardCol); rect(x,11,19,6,4,beardCol); rect(x,13,23,2,2,beardCol); }
+    else if(look.b===2||look.b===3){ rect(x,9,16,10,3,beardCol); rect(x,11,19,6,3,beardCol); }
+    else if(look.b===1){ rect(x,10,16,8,2,beardCol); }
+    const cls=(look.hat==='crown')?'lord':(look.hat==='scholar')?'scholar':classOf(g.weapon);
     if(cls==='lord'){
       rect(x,8,4,12,4,hsl(45,80,52)); rect(x,10,2,2,2,hsl(48,85,60)); rect(x,13,1,2,3,hsl(48,90,66)); rect(x,16,2,2,2,hsl(48,85,60));
       rect(x,8,7,12,2,hsl(45,70,40));
@@ -116,12 +185,15 @@ window.Sprites = (function(){
       rect(x,7,3,14,6,hsl(220,12,88)); rect(x,7,3,14,2,hsl(220,10,96)); rect(x,7,8,14,1,hsl(220,12,70));
     } else if(cls==='archer'){
       rect(x,8,5,12,5,hsl(fac.trim[0],40,40)); rect(x,8,5,12,2,hsl(fac.trim[0],45,55));
+    } else if(look.hat==='turban'){
+      const tb=look.turbanHue!=null?hsl(look.turbanHue,80,46):(pal.light||GOLD);
+      rect(x,7,4,14,6,tb); rect(x,7,8,14,2,pal.dark); rect(x,5,6,2,3,tb);
     } else {
-      rect(x,7,4,14,6,hsl(fac.armor[0],fac.armor[1],fac.armor[2]-6));
-      rect(x,7,4,14,2,hsl(fac.trim[0],fac.trim[1],fac.trim[2]));
-      rect(x,13,1,2,4,hsl(fac.trim[0],85,62));
-      rect(x,6,9,2,3,hsl(fac.armorD[0],fac.armorD[1],fac.armorD[2]));
-      rect(x,20,9,2,3,hsl(fac.armorD[0],fac.armorD[1],fac.armorD[2]));
+      rect(x,7,4,14,6,pal.dark);
+      rect(x,7,4,14,2,pal.light||hsl(fac.trim[0],fac.trim[1],fac.trim[2]));
+      rect(x,13,1,2,4,look.plume?'#d8192c':(pal.light||hsl(fac.trim[0],85,62)));
+      rect(x,6,9,2,3,pal.dark);
+      rect(x,20,9,2,3,pal.dark);
     }
     drawWeaponGlyph(x, g.weapon, 22, 6);
     cache[key]=c; return c;
@@ -193,19 +265,19 @@ window.Sprites = (function(){
     }
     else if(look.b===3){ rect(x,5,y,6,1,col); rect(x,6,y+1,4,3,col); rect(x,7,y+4,2,2,col); }
   }
-  function drawHorse(x, look, f, y0){
-    const hc=horseColor(look.hc), leg=f?1:0;
-    rect(x,1,y0+5,12,6,OUT); rect(x,2,y0+6,10,4,hc.base); rect(x,3,y0+6,8,1,hc.light);
-    rect(x,10,y0+2,5,5,OUT); rect(x,11,y0+3,3,4,hc.base); px(x,14,y0+4,INK);
-    px(x,12,y0+2,hc.mane); px(x,13,y0+1,hc.mane);
-    rect(x,4,y0+3,5,3,hc.mane); rect(x,5,y0+4,6,2,'#5f3526'); rect(x,6,y0+4,4,1,GOLD);
-    rect(x,2,y0+10,2,4,OUT); rect(x,6,y0+10,2,4,OUT); rect(x,9,y0+10,2,4,OUT); rect(x,12,y0+9,2,4,OUT);
-    rect(x,2+leg,y0+10,1,4,hc.dark); rect(x,6-leg,y0+10,1,4,hc.dark);
-    rect(x,9+leg,y0+10,1,4,hc.dark); rect(x,12-leg,y0+9,1,4,hc.dark);
-    rect(x,0,y0+6,3,1,hc.mane); px(x,0,y0+7,hc.mane); px(x,1,y0+8,hc.mane);
+  function drawHorse(x, look, f, y0, ox){
+    ox=ox||0;
+    const hc=horseColor(look.hc);
+    const cols={out:OUT, hbase:hc.base, hdark:hc.dark, mane:hc.mane, boot:hc.dark};
+    stamp(x,HORSE_BODY,cols,ox,y0);
+    stamp(x,HORSE_LEGS[f?1:0],cols,ox,y0+10);
+    // 目・たてがみハイライト・鞍
+    px(x,ox+15,y0+2,INK);
+    px(x,ox+14,y0+1,hc.light); px(x,ox+8,y0+6,hc.light); px(x,ox+4,y0+7,hc.light);
+    rect(x,ox+5,y0+5,5,2,'#5f3526'); rect(x,ox+6,y0+5,3,1,GOLD);
   }
-  function drawHeroWeapon(x, w, mounted, attack, look){
-    const oy=mounted?4:0, push=attack?2:0, big=look&&look.weaponLarge;
+  function drawHeroWeapon(x, w, oy, attack, look){
+    oy=oy||0; const push=attack?2:0, big=look&&look.weaponLarge;
     if(w==='spear'||w==='charge'){
       linePx(x,[[12+push,2+oy],[12+push,3+oy],[11+push,4+oy],[11+push,5+oy],[10+push,6+oy],[10+push,7+oy],[9+push,8+oy],[9+push,9+oy]],WOOD);
       px(x,13+push,1+oy,STEEL); px(x,14+push,0+oy,STEEL); px(x,14+push,1+oy,'#f4fbff');
@@ -243,29 +315,23 @@ window.Sprites = (function(){
     const f=(frame||0)&1, atk=attack?1:0, look=lookFor(g), mounted=!!look.m;
     const key='hero_'+(g.id!=null?g.id:g.name)+'_'+g.name+'_'+g.weapon+'_'+f+'_'+atk;
     if(cache[key]) return cache[key];
-    const W=18,H=mounted?22:16,{c,x}=mk(W,H);
+    // 上に雉羽/冠の余白(P)を確保。馬上は馬の上に騎手を重ねる
+    const P=5, W=mounted?22:18, H=mounted?28:22, {c,x}=mk(W,H);
     const seed=hash(g.name+g.weapon), skin=SKIN[seed%SKIN.length], fac=FAC[g.faction]||FAC[0];
     const pal=colorForHue(look.h, fac.armor[0]);
     const trim=hsl(fac.trim[0],fac.trim[1],fac.trim[2]);
-    const bounce=f?1:0, y=mounted?0:bounce;
-    if(mounted) drawHorse(x,look,f,9);
-    drawHeroWeapon(x,g.weapon,mounted,atk,look);
-    const headY=mounted?1+y:1+y, bodyY=mounted?8+y:8+y;
-    const bodyW=look.fat?8:6, bx=Math.floor((16-bodyW)/2);
-    rect(x,bx-1,bodyY,bodyW+2,6,OUT); rect(x,bx,bodyY+1,bodyW,4,pal.base); rect(x,bx,bodyY+1,bodyW,1,pal.light||trim);
-    rect(x,4,bodyY+2,2,4,OUT); rect(x,10+atk,bodyY+2,2,4,OUT);
-    rect(x,5,bodyY+2,1,3,pal.dark); rect(x,10+atk,bodyY+2,1,3,pal.dark);
-    if(!mounted){
-      rect(x,5+(f?1:0),14,2,2,OUT); rect(x,9-(f?1:0),14,2,2,OUT);
-      px(x,5+(f?1:0),14,pal.dark); px(x,9-(f?1:0),14,pal.dark);
-    }
-    rect(x,4,headY+2,8,7,OUT); rect(x,5,headY+3,6,5,hsl(skin[0],skin[1],skin[2]));
-    rect(x,5,headY+3,6,1,hsl(skin[0],skin[1],Math.min(90,skin[2]+8)));
-    px(x,6,headY+5,INK); px(x,10,headY+5,INK);
-    if(look.eyepatch){ rect(x,5,headY+5,3,1,INK); px(x,7,headY+6,INK); }
-    drawBeard(x,look,headY+8);
-    drawHat(x,look,headY,pal);
-    if(look.bell){ px(x,12,headY+7,GOLD); px(x,13,headY+8,'#ffec9c'); }
+    const bounce=f?1:0, y=mounted?P-1:P+bounce, ox=mounted?3:1;
+    if(mounted) drawHorse(x,look,f,15,2);
+    drawHeroWeapon(x,g.weapon,mounted?4:5,atk,look);
+    const cols=heroColors(pal,skin,trim);
+    stamp(x,HERO_BODY,cols,ox,y);
+    if(!mounted) stamp(x,HERO_LEGS[f?1:0],cols,ox,P+14);
+    if(mounted){ rect(x,ox+4,20,3,4,OUT); rect(x,ox+5,20,1,3,'#2c1c12'); } // 鞍上のブーツ
+    if(look.fat){ rect(x,ox+2,y+10,1,3,pal.base); rect(x,ox+11,y+10,1,3,pal.base); }
+    if(look.eyepatch){ rect(x,ox+3,y+4,4,1,INK); px(x,ox+7,y+5,INK); }
+    drawBeard(x,look,y+7);
+    drawHat(x,look,y,pal);
+    if(look.bell){ px(x,ox+11,y+7,GOLD); px(x,ox+12,y+8,'#ffec9c'); }
     cache[key]=c; return c;
   }
 
@@ -279,14 +345,12 @@ window.Sprites = (function(){
     const f=(frame||0)&1, key='e_'+shape+'_'+hue+'_'+(big||0)+'_'+f;
     if(cache[key]) return cache[key];
     const h=typeof hue==='number'?hue:0;
-    const S=shape==='horse'?(big?32:28):(big?30:22), {c,x}=mk(S,S);
-    const cx=Math.floor(S/2), body=hsl(h,48,big?42:38), dark=hsl(h,50,20), light=hsl(h,58,58);
-    const trim=hsl((h+42)%360,78,58), trimD=hsl((h+42)%360,70,36), skin=hsl(28,42,70);
-    const foot=f?1:0;
-    function helmet(hx,hy,hw){
-      rect(x,hx-1,hy-1,hw+2,4,OUT); rect(x,hx,hy,hw,2,trim); rect(x,hx,hy+2,hw,1,trimD);
-      px(x,hx+Math.floor(hw/2),hy-2,trim);
-    }
+    const S=shape==='horse'?26:16, {c,x}=mk(S,S);
+    // 兜の巻布=その勢力の色相そのもの(黄巾は黄色)。鎧は彩度を落として兜を立てる
+    const body=hsl(h,30,36), dark=hsl((h+352)%360,34,21), light=hsl((h+8)%360,40,48);
+    const trim=hsl(h,78,55), trimD=hsl(h,72,33), skin=hsl(28,42,72);
+    const cols={out:OUT, base:body, dark, light, trim, trimD, skin, skinD:hsl(18,38,58),
+      hair:'#241710', boot:'#241710', gold:GOLD, hbase:hsl(26,40,32), hdark:hsl(22,42,16), mane:'#1f1209'};
     function weapon(kind,bx,by,w,h){
       if(kind==='sword'){
         linePx(x,[[bx+w+1,by+2],[bx+w+2,by+1],[bx+w+3,by],[bx+w+4,by-1]],STEEL);
@@ -307,64 +371,46 @@ window.Sprites = (function(){
         rect(x,bx+w+1,by+2,4,4,OUT); rect(x,bx+w+2,by+3,2,2,'#3b3330'); px(x,bx+w+4,by+1,'#ffeb7a');
       }
     }
-    function soldier(kind,w,hgt,headW){
-      const headY=big?5:4, faceY=headY+3, bodyY=big?13:10;
-      const hx=Math.floor(cx-headW/2), bx=Math.floor(cx-w/2);
-      helmet(hx,headY,headW);
-      rect(x,hx,faceY,headW,2,skin); px(x,cx-2,faceY+1,INK); px(x,cx+2,faceY+1,INK);
-      rect(x,bx-1,bodyY-1,w+2,hgt+2,OUT); rect(x,bx,bodyY,w,hgt,body); rect(x,bx,bodyY,w,1,light); rect(x,bx,bodyY+2,w,1,trimD);
-      rect(x,bx-2,bodyY+1,2,5,OUT); rect(x,bx+w,bodyY+1,2,5,OUT);
-      rect(x,bx-1,bodyY+2,1,3,dark); rect(x,bx+w,bodyY+2,1,3,dark);
-      const ly=bodyY+hgt+1;
-      rect(x,cx-5+foot,ly,2,3,OUT); rect(x,cx+3-foot,ly,2,3,OUT);
-      rect(x,cx-5+foot,ly,1,2,dark); rect(x,cx+3-foot,ly,1,2,dark);
-      weapon(kind,bx,bodyY,w,hgt);
+    if(shape==='horse'){
+      // 騎兵: 馬グリッド+騎手上半身+槍
+      stamp(x,HORSE_BODY,cols,3,11);
+      stamp(x,HORSE_LEGS[f],cols,3,21);
+      for(let r=0;r<9;r++) stamp(x,[SOLDIER_BODY[r]],cols,5,6+r);
+      rect(x,8,16,5,2,'#5f3526'); rect(x,9,16,3,1,trim); // 鞍
+      linePx(x,[[14,12],[16,10],[18,8],[20,6]],WOOD); px(x,21,5,STEEL); px(x,21,4,'#ffffff');
+      cache[key]=c; return c;
     }
-    function enemyHorse(){
-      const hc=horseColor(28), y=big?14:12;
-      rect(x,cx-11,y,18,7,OUT); rect(x,cx-10,y+1,16,5,hc.base); rect(x,cx-8,y+1,12,1,hc.light);
-      rect(x,cx+5,y-5,6,7,OUT); rect(x,cx+6,y-4,4,5,hc.base); px(x,cx+9,y-3,INK);
-      rect(x,cx+4,y-5,2,5,hc.mane); px(x,cx+8,y-6,hc.mane); px(x,cx+10,y-5,hc.mane);
-      rect(x,cx-12,y+1,4,1,hc.mane); px(x,cx-13,y+2,hc.mane); px(x,cx-12,y+3,hc.mane);
-      rect(x,cx-7,y+6,2,5,OUT); rect(x,cx-2,y+6,2,5,OUT); rect(x,cx+3,y+6,2,5,OUT); rect(x,cx+7,y+5,2,5,OUT);
-      rect(x,cx-7+foot,y+6,1,4,hc.dark); rect(x,cx-2-foot,y+6,1,4,hc.dark);
-      rect(x,cx+3+foot,y+6,1,4,hc.dark); rect(x,cx+7-foot,y+5,1,4,hc.dark);
-      rect(x,cx-5,y-1,8,4,OUT); rect(x,cx-4,y,6,2,trim); rect(x,cx-4,y+2,6,1,trimD);
-      rect(x,cx-3,y-8,6,8,OUT); rect(x,cx-2,y-7,4,6,body); rect(x,cx-3,y-10,6,4,OUT);
-      helmet(cx-3,y-11,6); rect(x,cx-2,y-8,4,2,skin); px(x,cx-1,y-7,INK);
-      linePx(x,[[cx+3,y-7],[cx+5,y-8],[cx+7,y-9],[cx+9,y-10],[cx+11,y-11]],WOOD);
-      px(x,cx+12,y-12,STEEL); px(x,cx+12,y-11,'#ffffff');
-    }
-    if(shape==='horse') enemyHorse();
-    else if(shape==='light') soldier('spear',7,7,6);
-    else if(shape==='heavy') soldier('sword',big?14:11,big?11:9,big?10:7);
-    else if(shape==='shield') soldier('shield',9,9,7);
-    else if(shape==='archer') soldier('bow',8,8,6);
-    else if(shape==='mage') soldier('fan',9,9,6);
-    else if(shape==='bomb') soldier('bomb',8,8,6);
-    else soldier('sword',8,8,6);
+    stamp(x,SOLDIER_BODY,cols,2,0);
+    stamp(x,SOLDIER_LEGS[f],cols,2,11);
+    if(shape==='heavy'){ rect(x,3,7,1,4,dark); rect(x,12,7,1,4,dark); rect(x,4,0,8,1,dark); } // 重装: 肩当て+兜濃
+    if(shape==='mage'){ rect(x,4,0,8,3,'#3d3a45'); rect(x,5,0,6,1,'#8e889c'); } // 方士: 頭巾
+    const bx=5, bodyY=7, w=6;
+    if(shape==='light') weapon('spear',bx,bodyY,w,4);
+    else if(shape==='shield') weapon('shield',bx,bodyY,w,4);
+    else if(shape==='archer') weapon('bow',bx,bodyY,w,4);
+    else if(shape==='mage') weapon('fan',bx,bodyY,w,4);
+    else if(shape==='bomb') weapon('bomb',bx,bodyY,w,4);
+    else weapon('sword',bx,bodyY,w,4);
+    if(big){ const {c:c2,x:x2}=mk(S*2,S*2); x2.imageSmoothingEnabled=false; x2.drawImage(c,0,0,S*2,S*2); cache[key]=c2; return c2; }
     cache[key]=c; return c;
   }
 
   function bossSprite(shape, hue, frame){
     const f=(frame||0)&1, key='boss_'+(shape||'war')+'_'+hue+'_'+f;
     if(cache[key]) return cache[key];
-    const S=44,{c,x}=mk(S,S), cx=22, pal=colorForHue(hue, hue), skin='#d2a06f';
-    const y=f?1:0;
-    rect(x,11,21+y,22,18,OUT); rect(x,13,23+y,18,14,pal.base); rect(x,13,23+y,18,3,pal.light);
-    rect(x,8,24+y,7,12,OUT); rect(x,29,24+y,7,12,OUT); rect(x,10,25+y,4,9,pal.dark); rect(x,30,25+y,4,9,pal.dark);
-    rect(x,16,9+y,12,13,OUT); rect(x,17,10+y,10,10,skin); rect(x,17,10+y,10,2,'#efc38d');
-    px(x,19,15+y,INK); px(x,24,15+y,INK); rect(x,19,19+y,6,2,'#2b1a12'); rect(x,20,21+y,4,3,'#2b1a12');
-    if(shape==='mage'){
-      rect(x,14,5+y,16,6,OUT); rect(x,15,6+y,14,4,hsl(hue,35,60)); rect(x,21,2+y,2,5,hsl(hue,75,72));
-    } else if(shape==='lord'){
-      rect(x,14,5+y,16,6,OUT); rect(x,15,6+y,14,4,GOLD); px(x,18,4+y,'#ffe38a'); px(x,22,3+y,'#fff0a8'); px(x,26,4+y,'#ffe38a');
-    } else {
-      rect(x,13,6+y,18,6,OUT); rect(x,15,7+y,14,4,pal.dark); rect(x,21,2+y,2,6,pal.light);
-    }
-    linePx(x,[[33,13+y],[32,15+y],[31,17+y],[30,19+y],[29,21+y]],WOOD);
-    px(x,34,11+y,STEEL); px(x,35,10+y,STEEL); px(x,35,12+y,STEEL);
-    cache[key]=c; return c;
+    const pal=colorForHue(hue, hue);
+    const S=19,{c,x}=mk(S,S);
+    const cols={out:OUT, base:pal.base, dark:pal.dark, light:pal.light, trim:hsl(hue,80,55), trimD:hsl(hue,72,33),
+      skin:hsl(28,45,72), skinD:hsl(18,38,58), hair:'#241710', boot:'#241710', gold:GOLD};
+    stamp(x,SOLDIER_BODY,cols,2,2);
+    stamp(x,SOLDIER_LEGS[f],cols,2,13);
+    rect(x,3,9,1,4,pal.dark); rect(x,12,9,1,4,pal.dark); // 肩当て
+    if(shape==='mage'){ rect(x,4,2,8,3,'#3d3a45'); rect(x,5,2,6,1,'#8e889c'); }
+    else if(shape==='lord'){ rect(x,5,1,6,2,GOLD); px(x,6,0,'#ffe38a'); px(x,8,0,'#fff0a8'); px(x,10,0,'#ffe38a'); }
+    else { rect(x,7,0,2,3,GOLD); px(x,7,0,'#fff2a8'); } // 立物
+    linePx(x,[[13,9],[14,8],[15,7],[16,6]],WOOD); rect(x,15,2,3,5,OUT); rect(x,16,3,1,3,STEEL); px(x,16,2,'#ffffff'); // 大刀
+    const Z=3,{c:c2,x:x2}=mk(S*Z,S*Z); x2.imageSmoothingEnabled=false; x2.drawImage(c,0,0,S*Z,S*Z);
+    cache[key]=c2; return c2;
   }
 
   function minionSprite(faction, frame){

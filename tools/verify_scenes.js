@@ -45,14 +45,15 @@ const idToName = new Map(generals.map(g => [g.id, g.name]));
 const stageByNo = new Map(stages.map(s => [s.no, s]));
 const allowedKinds = new Set(['sweep', 'survive', 'doom']);
 const ranges = {
-  sweep: [50, 100],
-  survive: [30, 60],
-  doom: [25, 40],
+  sweep: [40, 70],
+  survive: [25, 45],
+  doom: [20, 30],
 };
 
 let chapterCount = 0;
 let sceneCount = 0;
 let doomCount = 0;
+let totalDurAll = 0;
 const kindCounts = { sweep: 0, survive: 0, doom: 0 };
 
 for (let no = 1; no <= 120; no++) {
@@ -102,9 +103,10 @@ for (let no = 1; no <= 120; no++) {
     }
   });
 
-  if (total < 90 || total > 210) {
-    errors.push(`第${no}回: total duration ${total} outside 90-210`);
+  if (total < 50 || total > 150) {
+    errors.push(`第${no}回: total duration ${total} outside 50-150`);
   }
+  totalDurAll += total;
 }
 
 if (errors.length) {
@@ -126,8 +128,10 @@ console.log('\nChanged files');
 console.log(`- ${FILES.scenes}`);
 console.log('- tools/verify_scenes.js');
 console.log('\nStats');
+const avgDur = chapterCount > 0 ? (totalDurAll / chapterCount).toFixed(1) : 0;
 console.log(`- chapters: ${chapterCount}`);
 console.log(`- scenes: ${sceneCount}`);
 console.log(`- doom: ${doomCount}`);
 console.log(`- sweep: ${kindCounts.sweep}`);
 console.log(`- survive: ${kindCounts.survive}`);
+console.log(`- avg chapter duration: ${avgDur}s`);

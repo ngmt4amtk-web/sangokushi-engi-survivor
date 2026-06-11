@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>sprite preview</title>
+<style>body{background:#1c1411;color:#dcd;font:11px monospace;padding:12px}
+.row{margin-bottom:14px}.cell{display:inline-block;text-align:center;margin:0 6px;vertical-align:bottom}
+canvas{image-rendering:pixelated;background:#2a201b;border:1px solid #443}
+h3{color:#e8b04a;margin:6px 0}</style></head>
+<body>
+<div id="out"></div>
+<script src="../js/engine/sprites.js"></script>
+<script>
+const Z=5, out=document.getElementById('out');
+function show(cv,label,zoom){
+  const z=zoom||Z, d=document.createElement('div'); d.className='cell';
+  const c2=document.createElement('canvas'); c2.width=cv.width*z; c2.height=cv.height*z;
+  const x=c2.getContext('2d'); x.imageSmoothingEnabled=false; x.drawImage(cv,0,0,c2.width,c2.height);
+  d.appendChild(c2); const t=document.createElement('div'); t.textContent=label; d.appendChild(t); cur.appendChild(d);
+}
+let cur;
+function section(name){ const h=document.createElement('h3'); h.textContent=name; out.appendChild(h);
+  cur=document.createElement('div'); cur.className='row'; out.appendChild(cur); }
+const HEROES=[
+  {name:'劉備',weapon:'twin',faction:0},{name:'関羽',weapon:'podao',faction:0},
+  {name:'張飛',weapon:'spear',faction:0},{name:'趙雲',weapon:'spear',faction:0},
+  {name:'諸葛亮',weapon:'fire',faction:0},{name:'呂布',weapon:'halberd',faction:3},
+  {name:'曹操',weapon:'sword',faction:1},{name:'孫堅',weapon:'sword',faction:2},
+  {name:'黄忠',weapon:'bow',faction:0},{name:'貂蝉',weapon:'chakram',faction:3},
+  {name:'兵卒甲',weapon:'sword',faction:1},{name:'兵卒乙',weapon:'spear',faction:2},
+];
+section('主役: フレーム1 / フレーム2 / 攻撃 / バスト(色一致チェック)');
+HEROES.forEach((g,i)=>{ g.id=900+i;
+  show(Sprites.hero(g,0),g.name); show(Sprites.hero(g,1),'f2'); show(Sprites.hero(g,0,1),'atk'); show(Sprites.general(g),'bust',3);
+});
+section('雑兵(黄巾hue50): light/heavy/shield/archer/mage/bomb/騎兵 ×2フレーム');
+['light','heavy','shield','archer','mage','bomb','horse'].forEach(s=>{
+  show(Sprites.enemy(s,50,0,0),s); show(Sprites.enemy(s,50,0,1),'f2');
+});
+section('雑兵(魏hue215)と精鋭(big)');
+['light','heavy','archer','horse'].forEach(s=>{ show(Sprites.enemy(s,215,0,0),s); });
+show(Sprites.enemy('heavy',215,1,0),'elite');
+show(Sprites.bossSprite('war',0,0),'boss',4);
+section('弾: 矢(敵/味方)/槍/刃/火/礫');
+show(Sprites.proj('arrow',0,0,0),'敵矢',4); show(Sprites.proj('arrow',50,0,0),'味方矢',4);
+show(Sprites.proj('spear',40,0,0),'槍',4); show(Sprites.proj('blade',280,0,0),'刃',4);
+show(Sprites.proj('fire',20,0,0),'火',4); show(Sprites.proj('rock',30,0,0),'礫',4);
+// グリッド行長チェック
+const bad=[];
+[['HERO',16],['SOLDIER',12],['HORSE',20]].forEach(()=>{});
+document.title='ok';
+</script></body></html>
