@@ -685,3 +685,50 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 /* ノベルゲーム式ページ送りの「▼」 */
 .tw-next{margin-top:16px;color:var(--gold2,#e8b04a);font-size:13px;text-align:center;animation:twblink 1.1s ease-in-out infinite;visibility:hidden}
 @keyframes twblink{50%{opacity:.25}}
+
+/* ════════ 英雄録 ════════ */
+#s-story .content{padding-bottom:80px;}
+
+.hr-head{display:flex;justify-content:space-between;align-items:center;padding:16px 0 10px;border-bottom:1px solid var(--line);margin-bottom:14px;}
+.hr-title{font-family:var(--mincho);font-size:19px;font-weight:700;color:var(--gold2);}
+.hr-gold{font-size:14px;color:var(--txt2);}
+.hr-gold b{color:var(--gold2);font-size:18px;}
+.hr-section{margin-bottom:18px;}
+.hr-sec-label{font-family:var(--mincho);font-size:13px;color:var(--gold);letter-spacing:2px;margin-bottom:10px;font-weight:700;}
+.hr-empty{text-align:center;color:var(--txt2);font-size:13px;padding:22px 10px;}
+.hr-next{max-width:320px;margin:18px auto 0;}
+
+/* 初出会いカード */
+.hr-new-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;}
+.hr-new-card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:2px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center;cursor:pointer;transition:.12s;opacity:0;transform:scale(.7);animation:pop .45s forwards;}
+.hr-new-card:hover{border-color:var(--gold);transform:scale(1.04);}
+.hr-new-face{width:72px;height:72px;margin:0 auto 5px;border-radius:8px;overflow:hidden;background:#0c0a10;}
+.hr-new-name{font-family:var(--mincho);font-size:14px;font-weight:800;}
+.hr-new-rar{font-size:9px;letter-spacing:-1px;color:var(--gold2);margin-top:1px;}
+
+/* 列伝進展カード */
+.hr-up-grid{display:flex;flex-direction:column;gap:7px;}
+.hr-up-card{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:9px;padding:8px 11px;cursor:pointer;transition:.1s;}
+.hr-up-card:hover{background:var(--panel2);transform:translateX(2px);}
+.hr-up-face{width:44px;height:44px;flex:0 0 44px;border-radius:7px;overflow:hidden;background:#0c0a10;}
+.hr-up-info{flex:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.hr-up-name{font-family:var(--mincho);font-size:15px;font-weight:800;}
+.hr-up-badge{font-size:10px;padding:2px 8px;background:rgba(217,178,90,.18);border:1px solid rgba(217,178,90,.4);border-radius:8px;color:var(--gold2);font-weight:700;white-space:nowrap;}
+
+/* 解禁度ピップ */
+.hr-pips{display:flex;gap:4px;justify-content:center;align-items:center;margin-top:5px;}
+.hr-pips.small{flex-shrink:0;}
+.pip{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--line);border:1px solid rgba(255,255,255,.1);}
+.pip.on{background:var(--gold2);box-shadow:0 0 5px rgba(243,214,138,.55);}
+.pip.sm{width:6px;height:6px;}
+
+/* 詳細シート（解禁ゲート付き） */
+.dl-head{display:flex;gap:14px;align-items:center;margin-bottom:10px;}
+.dl-face{flex:0 0 88px;}
+.dl-locked{font-size:12px;color:var(--txt2);background:var(--panel);border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:7px 0;line-height:1.55;}
+.dl-epitaph{margin-top:10px;background:linear-gradient(180deg,#4a443d,#2b2825);border:1px solid #5d5148;border-radius:9px;padding:12px 14px;}
+.dl-ep-label{font-family:var(--mincho);font-size:11px;color:var(--redL);letter-spacing:2px;margin-bottom:5px;}
+.dl-ep-text{font-size:13px;color:#c8bba6;line-height:1.85;}
+
+/* 図鑑セル: ピップ表示 */
+.cell-pips{position:absolute;top:3px;right:3px;display:flex;gap:2px;}

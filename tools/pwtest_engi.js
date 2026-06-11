@@ -105,18 +105,26 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
   // 物語の続きへ → 後半ストーリー
   if(won){
     await page.click('#r-next');
-    await page.waitForSelector('#b-pull',{timeout:4000});
-    const postChk=await page.evaluate(()=>({ storyLen:document.querySelector('#s-story .story-text').textContent.length, pullBtn:document.querySelector('#b-pull').textContent.trim() }));
-    console.log('POST', JSON.stringify(postChk));
-    await page.screenshot({path:SHOT+'06_poststory.png'});
-    // ガチャを引く
-    await page.click('#b-pull');
-    await page.waitForSelector('#gachaFx.show',{timeout:4000});
-    const gachaChk=await page.evaluate(()=>({ pulls:document.querySelectorAll('#gachabox .pull').length, owned:Object.keys(JSON.parse(localStorage.getItem('sangokushi-engi-v1')).owned).length }));
-    console.log('GACHA', JSON.stringify(gachaChk));
-    await page.screenshot({path:SHOT+'07_gacha.png'});
-    // 閉じる→ステージ選択(s2解放確認)
-    await page.click('#gachaFx');
+    // 後半ストーリー → 英雄録
+    // storyPre/post がある場合、sceneov タイプライターを2タップで読み飛ばす
+    for(let i=0;i<6;i++){
+      const tw=await page.$('#sceneov.show');
+      if(!tw) break;
+      await page.click('#sceneov'); await page.waitForTimeout(120);
+      const tw2=await page.$('#sceneov.show');
+      if(tw2){ await page.click('#sceneov'); await page.waitForTimeout(300); }
+      await page.waitForTimeout(300);
+    }
+    await page.waitForSelector('#hr-next',{timeout:5000});
+    const hrChk=await page.evaluate(()=>({
+      cards: document.querySelectorAll('.hr-new-card,.hr-up-card').length,
+      nextBtn: !!document.querySelector('#hr-next'),
+    }));
+    console.log('HERO_RECORD', JSON.stringify(hrChk));
+    if(hrChk.cards===0) console.warn('WARNING: hero record has no cards (may be expected if s1 roster all new)');
+    await page.screenshot({path:SHOT+'06_hero_record.png'});
+    // 「次へ」→ステージ選択(s2解放確認)
+    await page.click('#hr-next');
     await page.waitForSelector('.scard[data-st="s2"]');
     const s2locked=await page.evaluate(()=>document.querySelector('.scard[data-st="s2"]').classList.contains('locked'));
     console.log('s2 unlocked after s1 clear:', !s2locked);

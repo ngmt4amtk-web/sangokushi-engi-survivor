@@ -6,6 +6,82 @@ const G=window.G;
 const RAR=window.RARITY_INFO, FAC=window.FACTION_INFO;
 let selStage=null, selProto=null, selDiff='normal', selCurse=0, lastResult=null;
 
+// ── 英雄録: genId→登場stageId配列のキャッシュ ───────────────────
+let _genStageMap = null;
+function buildGenStageMap(){
+  if(_genStageMap) return _genStageMap;
+  _genStageMap = {};
+  for(const st of window.STAGES){
+    for(const gid of (st.roster||[])){
+      if(!_genStageMap[gid]) _genStageMap[gid] = [];
+      _genStageMap[gid].push(st.id);
+    }
+  }
+  return _genStageMap;
+}
+
+// cleared に含まれるstageIdのセットを返す(毎回Saveから引く)
+function clearedSet(){ return new Set(Object.keys(window.Save.get().cleared)); }
+
+// 制覇数 n: この武将が登場するstageIdのうち cleared にあるものの数
+function genClearedCount(gid, cleared){
+  const map = buildGenStageMap();
+  const stages = map[gid] || [];
+  return stages.filter(sid => cleared.has(sid)).length;
+}
+
+// 総登場数 totalN
+function genTotalN(gid){
+  const map = buildGenStageMap();
+  return (map[gid] || []).length;
+}
+
+// 解禁レベル計算 (0=未解禁, 1〜4)
+function unlockLevel(gid, cleared){
+  const n = genClearedCount(gid, cleared);
+  if(n === 0) return 0;
+  const totalN = genTotalN(gid);
+  const lv1 = 1;
+  const lv2 = 2;
+  const lv3 = Math.min(10, Math.max(3, Math.ceil(totalN * 0.25)));
+  const lv4 = Math.min(20, Math.max(4, Math.ceil(totalN * 0.5)));
+  // clamp: totalNが閾値より小さい場合は全閾値をtotalNに下げる
+  const cLv4 = Math.min(lv4, totalN);
+  const cLv3 = Math.min(lv3, cLv4);
+  const cLv2 = Math.min(lv2, cLv3);
+  if(n >= cLv4) return 4;
+  if(n >= cLv3) return 3;
+  if(n >= cLv2) return 2;
+  if(n >= lv1) return 1;
+  return 0;
+}
+
+// この武将のdoom epitaphを scenes.js から取得
+function genEpitaph(gid){
+  const g = genById(gid);
+  if(!g) return null;
+  for(const no in (window.CHAPTER_SCENES||{})){
+    for(const sc of window.CHAPTER_SCENES[no]){
+      if(sc.kind === 'doom'){
+        const protoId = typeof sc.proto === 'number' ? sc.proto : genByName(sc.proto);
+        if(protoId === gid && sc.epitaph) return sc.epitaph;
+      }
+    }
+  }
+  return null;
+}
+
+// bio の前半/後半を「。」区切りで二分
+function splitBio(bio){
+  if(!bio) return ['',''];
+  const parts = bio.split('。').filter(Boolean);
+  if(parts.length <= 1) return [bio, ''];
+  const half = Math.ceil(parts.length / 2);
+  const front = parts.slice(0, half).map(s=>s+'。').join('');
+  const back = parts.slice(half).map(s=>s+'。').join('');
+  return [front, back];
+}
+
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
 function stars(r){return '★'.repeat(r);}
 function fmtT(s){s=Math.floor(s);return (Math.floor(s/60))+':'+String(s%60).padStart(2,'0');}
@@ -550,71 +626,97 @@ function renderPostStory(res){
   // 結末も冒頭と同じノベルゲーム式ページ送りで読ませてから、褒賞画面へ
   const st=res.stage;
   const _post=((((window.CHAPTER_SCENES||{})[st.no])||[]).map(s=>s&&s.post).filter(Boolean).pop())||st.storyPost||'';
-  const go=()=>{ renderGachaOffer(res); show('s-story'); };
+  const go=()=>{ renderHeroRecord(res); show('s-story'); };
   if(_post){ showScenePre({pre:_post, markText:`第${st.no}回 『${st.name}』 ─ 結末`, lastLabel:'▼ 褒賞へ'}, go); }
   else go();
 }
-function renderGachaOffer(res){
-  const st=res.stage;
-  const c=$('#s-story .content');
-  const pulls=res.win?5:1;
-  c.innerHTML=`
-    <div class="topbar"><h2 class="sec" style="margin:0;border:none;">第${st.no}回 ─ 戦いの褒賞</h2></div>
-    <div class="note" style="text-align:center;">${res.win?'勝利の褒賞':'敗れたが…'}この戦いの英雄 <b>${pulls}人</b> を招集できる。</div>
-    <button class="btn gold" id="b-pull" style="margin-top:14px;">🎴 ${pulls}連 招集する</button>
-    <button class="btn" id="b-skip" style="opacity:.7">招集せずステージ選択へ</button>`;
-  $('#b-pull').onclick=()=>doStageGacha(pulls, st);
-  $('#b-skip').onclick=()=>{ renderStage(); show('s-stage'); };
-}
+// ── 英雄録(段階解禁式の英雄図鑑) ─────────────────
+function renderHeroRecord(res){
+  const st = res.stage;
+  const cleared = clearedSet();
+  const roster = st.roster || [];
 
-// ── ステージ報酬ガチャ ─────────────────────
-function rollRarityFrom(pool){
-  // その回の登場武将プールは小さく目玉(高レア)こそ狙い。重みはフラット寄りにして関羽級も出る
-  const W=[0,2.4,2.8,3.0,3.0,2.6];
-  const items=pool.map(id=>genById(id)).filter(Boolean);
-  let tot=0; for(const g of items) tot+=W[g.rarity]||1;
-  let x=Math.random()*tot;
-  for(const g of items){ x-=(W[g.rarity]||1); if(x<=0) return g; }
-  return items[items.length-1];
-}
-function doStageGacha(n, st){
-  const S=window.Save.get();
-  const pool=(st.gachaPool&&st.gachaPool.length)?st.gachaPool:(st.roster||[]);
-  const rolls=[];
-  for(let i=0;i<n;i++) rolls.push(rollRarityFrom(pool));
-  // 5連(クリア)は最低1人をその回の目玉(SSR/UR)で確定。関羽が全然出ない問題への対策
-  if(n>=3){
-    const high=pool.map(genById).filter(g=>g&&g.rarity>=4);
-    if(high.length && !rolls.some(g=>g&&g.rarity>=4)) rolls[rolls.length-1]=high[Math.floor(Math.random()*high.length)];
-  }
-  const drops=[];
-  for(const g of rolls){
-    const before=S.owned[g.id]||0;
-    let refund=0, isNew=before===0;
-    if(before>=window.GACHA.dupMax){ refund=window.GACHA.dupRefund[g.rarity]||0; }
-    else { S.owned[g.id]=before+1; }
-    drops.push({g,isNew,refund,dup:before});
-  }
-  window.Save.save();
-  playGacha(drops);
-}
-function playGacha(drops){
-  window.SFX&&(SFX.play('gacha'), drops.some(d=>d.g.rarity>=4)&&SFX.play('kizuna'));
-  const fx=$('#gachabox'); fx.innerHTML='';
-  const grid=el('div','pull-grid');
-  drops.sort((a,b)=>b.g.rarity-a.g.rarity);
-  drops.forEach((d,i)=>{
-    const p=el('div','pull r'+d.g.rarity); p.style.animationDelay=(i*0.06)+'s';
-    p.style.borderColor=RAR[d.g.rarity].color;
-    p.appendChild(faceEl(d.g,64));
-    p.appendChild(el('div','pn txt-r'+d.g.rarity, d.g.name));
-    p.appendChild(el('div',null,`<span style="font-size:9px" class="txt-r${d.g.rarity}">${stars(d.g.rarity)}</span> ${d.isNew?'<span style="color:#7CFC8A;font-size:10px;font-weight:800">NEW</span>':(d.refund?`<span style="color:var(--gold2);font-size:9px">+${d.refund}</span>`:`<span style="color:var(--txt2);font-size:9px">凸</span>`)}`));
-    grid.appendChild(p);
+  // 今回の制覇で「初めて出会った英雄」= n がちょうど1になった武将
+  const newHeroes = roster.map(gid=>genById(gid)).filter(g=>{
+    if(!g) return false;
+    return genClearedCount(g.id, cleared) === 1;
   });
-  fx.appendChild(grid);
-  const hint=el('div','tap-hint','タップで閉じる'); fx.appendChild(hint);
-  $('#gachaFx').classList.add('show');
-  $('#gachaFx').onclick=()=>{ $('#gachaFx').classList.remove('show'); renderStage(); show('s-stage'); };
+  // 「列伝が進んだ英雄」= 解禁レベルが上がった武将(新出会い以外で lv > 以前のlv)
+  // 以前のlvを「cleared から今のステージを除いたセット」で計算して比較
+  const prevCleared = new Set([...cleared].filter(sid=>sid!==st.id));
+  const levelUpHeroes = roster.map(gid=>genById(gid)).filter(g=>{
+    if(!g) return false;
+    if(newHeroes.find(x=>x.id===g.id)) return false; // 初出会いは別枠
+    const prevLv = unlockLevel(g.id, prevCleared);
+    const nowLv = unlockLevel(g.id, cleared);
+    return nowLv > prevLv;
+  });
+
+  const S = window.Save.get();
+  const c = $('#s-story .content');
+  c.innerHTML = `
+    <div class="hr-head">
+      <div class="hr-title">英雄録 ─ 第${st.no}回</div>
+      <div class="hr-gold">軍功 <b>+${res.gold||0}</b></div>
+    </div>
+    ${newHeroes.length ? `
+    <div class="hr-section">
+      <div class="hr-sec-label">初めて出会った英雄</div>
+      <div class="hr-new-grid" id="hrNewGrid"></div>
+    </div>` : ''}
+    ${levelUpHeroes.length ? `
+    <div class="hr-section">
+      <div class="hr-sec-label">列伝が進んだ英雄</div>
+      <div class="hr-up-grid" id="hrUpGrid"></div>
+    </div>` : ''}
+    ${(!newHeroes.length && !levelUpHeroes.length) ? `
+    <div class="hr-empty">この回の英雄はすでに十分に記録されている</div>` : ''}
+    <button class="btn primary hr-next" id="hr-next">次へ ▶</button>
+  `;
+
+  // 初出会いカード
+  const newGrid = c.querySelector('#hrNewGrid');
+  if(newGrid){
+    newHeroes.forEach((g,i)=>{
+      const lv = unlockLevel(g.id, cleared);
+      const card = el('div','hr-new-card');
+      card.style.animationDelay = (i*0.07)+'s';
+      card.innerHTML = `
+        <div class="hr-new-face" data-fid="${g.id}"></div>
+        <div class="hr-new-name txt-r${g.rarity}">${g.name}</div>
+        <div class="hr-new-rar">${'★'.repeat(g.rarity)}</div>
+        <div class="hr-pips">${[1,2,3,4].map(k=>`<span class="pip ${k<=lv?'on':''}" title="解禁Lv${k}"></span>`).join('')}</div>
+      `;
+      card.onclick = ()=>openDetailLv(g, lv);
+      newGrid.appendChild(card);
+      // 顔描画
+      const face = card.querySelector('.hr-new-face');
+      if(face) face.appendChild(faceEl(g, 72));
+    });
+  }
+
+  // 列伝進展カード
+  const upGrid = c.querySelector('#hrUpGrid');
+  if(upGrid){
+    levelUpHeroes.forEach(g=>{
+      const lv = unlockLevel(g.id, cleared);
+      const card = el('div','hr-up-card');
+      card.innerHTML = `
+        <div class="hr-up-face" data-fid="${g.id}"></div>
+        <div class="hr-up-info">
+          <span class="hr-up-name txt-r${g.rarity}">${g.name}</span>
+          <span class="hr-up-badge">列伝 進展</span>
+        </div>
+        <div class="hr-pips small">${[1,2,3,4].map(k=>`<span class="pip ${k<=lv?'on':''}" title="解禁Lv${k}"></span>`).join('')}</div>
+      `;
+      card.onclick = ()=>openDetailLv(g, lv);
+      upGrid.appendChild(card);
+      const face = card.querySelector('.hr-up-face');
+      if(face) face.appendChild(faceEl(g, 44));
+    });
+  }
+
+  c.querySelector('#hr-next').onclick = ()=>{ renderStage(); show('s-stage'); };
 }
 
 // ── ポーズ ─────────────────────────────────
@@ -774,10 +876,16 @@ function renderCodex(){
   // 全390cellを一度だけ生成(顔は1回描画)。絞り込みは表示/非表示＋並べ替えのみで再生成しない＝スマホでも軽い
   const cells=[];
   for(const g of window.GENERALS){
-    const owned=S.owned[g.id]||0, avail=owned>0;
+    const cleared = clearedSet();
+    const lv = unlockLevel(g.id, cleared);
+    const avail = lv >= 1;
     const cell=el('div','cell r'+g.rarity+(avail?'':' locked'));
-    cell.dataset.id=g.id; cell.dataset.fac=g.faction; cell.dataset.rar=g.rarity; cell.dataset.wpn=g.weapon; cell.dataset.name=g.name; cell.dataset.owned=owned; cell.dataset.chap=g.chapN||0;
-    if(owned>1) cell.appendChild(el('span','dup','+'+(owned-1)));
+    cell.dataset.id=g.id; cell.dataset.fac=g.faction; cell.dataset.rar=g.rarity; cell.dataset.wpn=g.weapon; cell.dataset.name=g.name; cell.dataset.owned=(S.owned[g.id]||0); cell.dataset.chap=g.chapN||0; cell.dataset.lv=lv;
+    if(avail){
+      const pipEl=el('span','cell-pips');
+      pipEl.innerHTML=[1,2,3,4].map(k=>`<span class="pip ${k<=lv?'on':''} sm"></span>`).join('');
+      cell.appendChild(pipEl);
+    }
     const av=el('div','av'); av.appendChild(faceEl(g,50)); cell.appendChild(av);
     cell.appendChild(el('div','cn txt-r'+g.rarity, avail?g.name:'？？'));
     cell.appendChild(el('div','stars txt-r'+g.rarity, stars(g.rarity)));
@@ -793,13 +901,13 @@ function renderCodex(){
       if(ok && st.rar.size && !st.rar.has(+cell.dataset.rar)) ok=false;
       if(ok && st.wpn.size && !st.wpn.has(cell.dataset.wpn)) ok=false;
       if(ok && st.q && cell.dataset.name.indexOf(st.q)<0) ok=false;
-      if(ok && st.hide && +cell.dataset.owned===0) ok=false;
+      if(ok && st.hide && +cell.dataset.lv===0) ok=false;
       cell.style.display=ok?'':'none';
-      if(ok && +cell.dataset.owned>0) shownOwned++;
+      if(ok && +cell.dataset.lv>0) shownOwned++;
     }
     const vis=cells.filter(c=>c.style.display!=='none');
     vis.sort((a,b)=>{
-      const ao=(+a.dataset.owned>0)?0:1, bo=(+b.dataset.owned>0)?0:1; if(ao!==bo)return ao-bo;  // 未所持は常に後ろ
+      const ao=(+a.dataset.lv>0)?0:1, bo=(+b.dataset.lv>0)?0:1; if(ao!==bo)return ao-bo;  // 未解禁は常に後ろ
       if(st.sort==='name') return a.dataset.name.localeCompare(b.dataset.name,'ja');
       if(st.sort==='chap') return (+b.dataset.chap)-(+a.dataset.chap) || (+b.dataset.rar)-(+a.dataset.rar);
       if(st.sort==='fac') return (+a.dataset.fac)-(+b.dataset.fac) || (+b.dataset.rar)-(+a.dataset.rar);
@@ -819,30 +927,108 @@ function renderCodex(){
 }
 const DLAB=['実証','武名','膂力','恐怖','戦術','戦略','統率'];
 function openDetail(g){
-  const owned=window.Save.get().owned[g.id]||0;
-  let bars='';
-  for(let i=0;i<7;i++) bars+=`<span>${DLAB[i]}</span><div class="dbar"><i style="width:${g.d[i]*10}%"></i></div><b>${g.d[i]}</b>`;
-  $('#modalbox').innerHTML=`
-    <div style="display:flex;gap:14px;align-items:center;">
-      <div class="dface" data-fid="${g.id}" style="width:88px;height:88px;flex:0 0 88px;border:2px solid var(--${['n','r','sr','ssr','ur'][g.rarity-1]||'n'});border-radius:10px;overflow:hidden;background:#0c0a10;"></div>
-      <div>
-        <h3 class="txt-r${g.rarity}">${g.name}</h3>
-        <div style="color:var(--txt2);font-size:13px;">【${g.title}】 <span class="fac-chip f${g.faction}">${FAC[g.faction].name}</span> ${stars(g.rarity)}</div>
-        <div style="margin-top:4px;font-size:13px;">武器：<b>${g.weaponName}</b>（${window.WTYPE[g.weapon].jp}）${owned>1?` ・ <span style="color:var(--gold2)">+${owned-1}凸</span>`:''}</div>
-      </div>
-    </div>
-    <div style="margin-top:10px;font-size:13px;"><b style="color:var(--gold2)">${g.skill}</b> ─ ${g.skillDesc}</div>
-    ${g.bio?`<div class="bio-tag">${g.bio}</div>`:''}
-    ${g.chapN?`<div style="font-size:12px;color:var(--txt2);margin:6px 0;line-height:1.55;">演義での登場：全 <b style="color:var(--gold2)">${g.chapN}</b> 回　主な舞台 ${(g.chapters||[]).map(n=>'第'+n+'回').join('・')}</div>`:''}
-    ${g.profile?`<div class="profile">${esc(g.profile).split(/\n\s*\n/).map(p=>'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('')}</div>`:''}
-    <div class="dscore">${bars}</div>
-    <div style="font-size:12px;color:var(--txt2)">演義評価：腕W <b>${g.scores.W}</b> / 戦場B <b>${g.scores.B}</b> / 戦略S <b>${g.scores.S}</b>${g.scores.G?` / 政G <b>${g.scores.G}</b>`:''}</div>
-    ${g.voice?`<div class="voice">「${g.voice}」</div>`:''}
-    <button class="btn" id="m-close" style="margin-top:16px">閉じる</button>`;
+  const cleared = clearedSet();
+  const lv = unlockLevel(g.id, cleared);
+  openDetailLv(g, lv);
+}
+
+// 英雄録の解禁レベルゲート付き詳細
+function openDetailLv(g, lv){
+  if(lv === undefined){
+    const cleared = clearedSet();
+    lv = unlockLevel(g.id, cleared);
+  }
+  const kizunaNames = (window.KIZUNA||[]).filter(k=>k.members.includes(g.id)).map(k=>k.name);
+  const [bioFront, bioBack] = splitBio(g.bio);
+  const epitaph = genEpitaph(g.id);
+  const ult = window.ULTS ? window.ULTS.forGeneral(g) : null;
+  const map = buildGenStageMap();
+  const stageIds = map[g.id] || [];
+  const stageNos = stageIds.map(sid=>{ const s=window.STAGES.find(x=>x.id===sid); return s?s.no:null; }).filter(Boolean).sort((a,b)=>a-b);
+  const totalN = genTotalN(g.id);
+  const cleared = clearedSet();
+  const n = genClearedCount(g.id, cleared);
+
+  // 次のレベルまでの残り数
+  function nextLvInfo(lvN){
+    const lv1=1, lv2=2;
+    const lv3=Math.min(10,Math.max(3,Math.ceil(totalN*0.25)));
+    const lv4=Math.min(20,Math.max(4,Math.ceil(totalN*0.5)));
+    const cLv4=Math.min(lv4,totalN), cLv3=Math.min(lv3,cLv4), cLv2=Math.min(lv2,cLv3);
+    const thresholds=[cLv4,cLv3,cLv2,lv1];
+    for(const t of thresholds){ if(n<t) return t-n; }
+    return 0;
+  }
+
+  let html = `<div class="dl-head">`;
+  // lv1以上: 肖像+名前+読み/字+勢力+武器+title
+  if(lv>=1){
+    html+=`<div class="dl-face" data-fid="${g.id}" style="width:88px;height:88px;flex:0 0 88px;border:2px solid var(--${['n','r','sr','ssr','ur'][g.rarity-1]||'n'});border-radius:10px;overflow:hidden;background:#0c0a10;"></div>
+    <div>
+      <h3 class="txt-r${g.rarity}">${g.name}</h3>
+      <div style="color:var(--txt2);font-size:13px;">【${esc(g.title||'')}】 <span class="fac-chip f${g.faction}">${FAC[g.faction].name}</span> ${'★'.repeat(g.rarity)}</div>
+      <div style="margin-top:4px;font-size:13px;">武器：<b>${esc(g.weaponName||'')}</b>（${window.WTYPE[g.weapon].jp}）</div>
+    </div>`;
+  } else {
+    // 未解禁
+    html+=`<div style="width:88px;height:88px;flex:0 0 88px;border:2px solid var(--line);border-radius:10px;background:#0c0a10;display:flex;align-items:center;justify-content:center;filter:brightness(.18) contrast(.6)"></div>
+    <div><h3 style="color:var(--txt2)">???</h3><div style="font-size:12px;color:var(--txt2)">未解禁の英雄</div></div>`;
+  }
+  html+=`</div>`;
+
+  // lv2以上: bio前半
+  if(lv>=1 && bioFront){
+    html+=`<div class="bio-tag">${esc(bioFront)}</div>`;
+  } else if(lv<2 && (bioFront||bioBack)){
+    const rem=nextLvInfo(2);
+    html+=`<div class="dl-locked">??? ─ この英雄が登場する章をあと${rem}章制覇で解禁</div>`;
+  }
+
+  // lv2: +bioFull(bio後半)
+  if(lv>=2 && bioBack){
+    html+=`<div class="bio-tag">${esc(bioBack)}</div>`;
+  } else if(lv>=1 && lv<3 && (bioBack||kizunaNames.length)){
+    const rem=nextLvInfo(3);
+    html+=`<div class="dl-locked">??? ─ この英雄が登場する章をあと${rem}章制覇で解禁</div>`;
+  }
+
+  // lv3: +bio全文+縁
+  if(lv>=3){
+    if(g.profile){
+      html+=`<div class="profile">${esc(g.profile).split(/\n\s*\n/).map(p=>'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('')}</div>`;
+    }
+    if(kizunaNames.length){
+      html+=`<div style="font-size:12px;color:var(--gold2);margin:7px 0;"><b>縁：</b>${kizunaNames.map(n=>esc(n)).join('　')}</div>`;
+    }
+  } else if(lv>=2 && (g.profile||kizunaNames.length)){
+    const rem=nextLvInfo(3);
+    html+=`<div class="dl-locked">??? ─ この英雄が登場する章をあと${rem}章制覇で解禁</div>`;
+  }
+
+  // lv4: +固有技+登場章リスト+最期
+  if(lv>=4){
+    if(ult){
+      html+=`<div style="margin-top:10px;font-size:13px;"><b style="color:var(--gold2)">${esc(ult.name||'')}</b>${ult.def&&ult.def.quote?` ─ <span class="voice">「${esc(ult.def.quote)}」</span>`:''}</div>`;
+    }
+    if(stageNos.length){
+      html+=`<div style="font-size:12px;color:var(--txt2);margin:6px 0;line-height:1.55;">演義での登場：全 <b style="color:var(--gold2)">${totalN}</b> 回　${stageNos.map(n=>'第'+n+'回').join('・')}</div>`;
+    }
+    if(epitaph){
+      html+=`<div class="dl-epitaph"><div class="dl-ep-label">最期</div><div class="dl-ep-text">${esc(epitaph)}</div></div>`;
+    }
+  } else if(lv>=3){
+    const rem=nextLvInfo(4);
+    html+=`<div class="dl-locked">??? ─ この英雄が登場する章をあと${rem}章制覇で解禁</div>`;
+  }
+
+  html+=`<div class="hr-pips" style="margin:12px 0 4px">${[1,2,3,4].map(k=>`<span class="pip ${k<=lv?'on':''}" title="解禁Lv${k}"></span>`).join('')} <span style="font-size:11px;color:var(--txt2);margin-left:6px;">Lv${lv}</span></div>`;
+  html+=`<button class="btn" id="dl-close" style="margin-top:12px">閉じる</button>`;
+
+  $('#modalbox').innerHTML = html;
   $('#modal').classList.add('show');
-  $('#modalbox').scrollTop=0;   // 別の武将を開いたら必ず先頭から表示(前のスクロール位置を持ち越さない)
-  const _df=$('#modalbox .dface'); if(_df) _df.appendChild(faceEl(g,84));
-  $('#m-close').onclick=()=>$('#modal').classList.remove('show');
+  $('#modalbox').scrollTop = 0;
+  const _df=$('#modalbox .dl-face'); if(_df) _df.appendChild(faceEl(g,84));
+  $('#dl-close').onclick=()=>$('#modal').classList.remove('show');
 }
 
 // ── 初期化 ─────────────────────────────────
