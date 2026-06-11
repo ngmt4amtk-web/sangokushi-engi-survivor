@@ -667,19 +667,14 @@ function buildChoices(){
     // → 第1回で劉備プレイ中に関羽・張飛が候補に出る
     let poolIds;
     if(R.stage.restrict) {
-      const proto = R.stage.protagonist || [];
-      poolIds = proto.length >= 2 ? proto : proto;  // 複数なら全員そのまま使う
+      poolIds = (R.stage.protagonist || []).slice();
     } else {
       poolIds = R.stage.levelPool || R.stage.roster || [];
     }
-    // poolIdが5人未満の章はgachaPoolからboss/elite以外を補充して最低5人確保
-    if(poolIds.length < 5 && R.stage.gachaPool) {
-      const fill = R.stage.gachaPool.filter(id =>
-        !poolIds.includes(id) &&
-        (() => { const g = window.GENERALS.find(x=>x.id===id); return g && g.rarity <= 4; })()
-      );
-      poolIds = poolIds.concat(fill).slice(0, Math.max(poolIds.length, 5));
-    }
+    // 注意: gachaPoolからの自動補充は禁止(コレクション用プールには敵側武将が入っており、
+    // 第3回で丁原・第4回で董卓が「味方」に出る事故の原因になった)。
+    // levelPool=味方分類済みリストが唯一の真実。少人数章(曹操+陳宮の逃亡等)はそれが演出。
+    // 増やしたい章は scenes.js 側の levelPool:['名前',…] で明示的に上書きする。
     const baseAvail=window.GENERALS.filter(g=> poolIds.includes(g.id) && !equipIds.includes(g.id) && !(R.fusedConsumed&&R.fusedConsumed.has(g.id)));
     for(const g of baseAvail){ out.push({type:'wnew',gen:g,rarity:g.rarity,weight:[0,7,5,3,1.5,0.8][g.rarity]||1}); }
   }
