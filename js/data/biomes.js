@@ -30,6 +30,7 @@ window.BIOMES = (function(){
 
   // water
   [7,38,45,46,47,48,49,50,55,61,66,67,68,74,75,82,83,84].forEach(n=>{ byNo[n]='water'; });
+  [39,40,90,103].forEach(n=>{ byNo[n]='scorched'; }); // 火計の章=焦土
 
   // snow
   [94,108].forEach(n=>{ byNo[n]='snow'; });
@@ -85,6 +86,20 @@ window.BIOMES = (function(){
         }
         return { x, y, vx: rnd(5, 16), vy: rnd(-6, 6), r: 1.2,
           life: rnd(1.8, 3.8), maxLife: 3.8, col: '#d4c8b0', blink: false, kind: 'dust' };
+      },
+    },
+    scorched: { // 焦土: 火の粉が多く舞い、灰が漂う
+      cap: 30, capLow: 14,
+      spawn(dt, cam, CW, CH, rnd) {
+        const isSpark = Math.random() < 0.45;
+        const x = cam.x + rnd(-CW * 0.52, CW * 0.52);
+        const y = cam.y + rnd(-CH * 0.52, CH * 0.52);
+        if (isSpark) {
+          return { x, y, vx: rnd(-24, 24), vy: rnd(-70, -28), r: rnd(1.4, 2.2),
+            life: rnd(0.7, 1.4), maxLife: 1.4, col: '#ff8833', blink: true, kind: 'spark' };
+        }
+        return { x, y, vx: rnd(-10, 10), vy: rnd(-14, -4), r: 1.4,
+          life: rnd(2.0, 4.0), maxLife: 4.0, col: '#8a837c', blink: false, kind: 'ash' };
       },
     },
     plain: {

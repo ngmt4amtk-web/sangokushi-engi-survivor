@@ -518,8 +518,30 @@ window.Sprites = (function(){
   }
   function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');}
   function mix(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+  // AI生成の背景アート(assets/bg/*.png)。読み込み完了後はこちらを床に使う
+  const BG_IMGS={};
+  function biomeImage(bm){
+    if(!(bm in BG_IMGS)){
+      BG_IMGS[bm]=null;
+      const im=new Image();
+      im.onload=()=>{ BG_IMGS[bm]=im; };
+      im.onerror=()=>{ BG_IMGS[bm]=false; };
+      im.src='assets/bg/'+bm+'.png';
+    }
+    return BG_IMGS[bm];
+  }
   function floorTile(bg, biome){
     const bm=biome||'plain';
+    const img=biomeImage(bm);
+    if(img){
+      const key='floorimg_'+bm+'_'+bg.ground;
+      if(cache[key]) return cache[key];
+      const {c,x}=mk(256,256);
+      x.drawImage(img,0,0,256,256);
+      // 章の地色をうっすら重ねて時代/勢力の空気を出す
+      x.globalAlpha=0.14; x.fillStyle=bg.ground; x.fillRect(0,0,256,256); x.globalAlpha=1;
+      cache[key]=c; return c;
+    }
     const key='floor_'+bg.ground+'_'+bg.grid+'_'+bm;
     if(cache[key]) return cache[key];
     const {c,x}=mk(64,64), g=hexToRgb(bg.ground), gr=hexToRgb(bg.grid);
