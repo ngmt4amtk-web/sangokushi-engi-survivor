@@ -163,11 +163,11 @@ function renderTitle(){
       <h1 class="tl-logo">三国志演義<br>survivor</h1>
     </div>
     <button class="btn primary tl-sortie" id="b-play">出陣</button>
+    <button class="btn tl-sortie tl-read" id="b-read">演義を読む</button>
     <div class="tl-menu">
       <button class="btn tl-menu-btn" id="b-stage">章選択</button>
       <button class="btn tl-menu-btn" id="b-codex">英雄図鑑</button>
       <button class="btn tl-menu-btn" id="b-barracks">修練場</button>
-      <button class="btn tl-menu-btn" id="b-read">演義を読む</button>
     </div>
     <div class="tl-progress">${clearedN}/120回 踏破</div>
     <button class="btn tl-reset" id="b-reset">セーブをリセット</button>
