@@ -518,23 +518,117 @@ window.Sprites = (function(){
   }
   function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');}
   function mix(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
-  function floorTile(bg){
-    const key='floor_'+bg.ground+'_'+bg.grid;
+  function floorTile(bg, biome){
+    const bm=biome||'plain';
+    const key='floor_'+bg.ground+'_'+bg.grid+'_'+bm;
     if(cache[key]) return cache[key];
     const {c,x}=mk(64,64), g=hexToRgb(bg.ground), gr=hexToRgb(bg.grid);
-    const dark=mix(g,[0,0,0],0.18), light=mix(g,[255,255,255],0.10), low=mix(g,gr,0.42);
-    rect(x,0,0,64,64,bg.ground);
     let seed=hash(key);
     function rnd(){seed=Math.imul(seed^seed>>>15,2246822519);seed=Math.imul(seed^seed>>>13,3266489917);return ((seed^seed>>>16)>>>0)/4294967296;}
-    for(let i=0;i<22;i++){
-      const px0=(rnd()*64)|0, py0=(rnd()*64)|0, kind=(rnd()*4)|0;
-      if(kind===0){ rect(x,px0,py0,2,1,rgbToHex(...light)); rect(x,px0+2,py0+1,1,1,rgbToHex(...low)); }
-      else if(kind===1){ rect(x,px0,py0,1,1,rgbToHex(...dark)); rect(x,px0+1,py0,1,1,rgbToHex(...low)); }
-      else if(kind===2){ rect(x,px0,py0,5,1,rgbToHex(...low)); rect(x,px0+2,py0+1,4,1,rgbToHex(...dark)); }
-      else { rect(x,px0,py0,3,1,rgbToHex(...mix(light,[230,220,180],0.25))); px(x,px0+1,py0+1,rgbToHex(...low)); }
+
+    if(bm==='water'){
+      // 水上: 暗い水色の地面 + 横板張り帯 + 波頭の白点
+      const waterBase=rgbToHex(...mix(g,[30,70,110],0.55));
+      const waterMid =rgbToHex(...mix(g,[40,85,125],0.45));
+      const plankCol =rgbToHex(...mix(g,[90,60,30],0.32));
+      const plankDk  =rgbToHex(...mix(g,[50,35,15],0.28));
+      const waveCol  ='#c8dde8';
+      rect(x,0,0,64,64,waterBase);
+      // 横板張り帯(8px間隔)
+      for(let py=0;py<64;py+=8){
+        rect(x,0,py,64,1,plankCol);
+        rect(x,0,py+7,64,1,plankDk);
+      }
+      // 波頭の白点(散在)
+      for(let i=0;i<14;i++){
+        const wx=(rnd()*64)|0, wy=(rnd()*64)|0;
+        if((rnd()*3)|0===0){ rect(x,wx,wy,3,1,waveCol); rect(x,wx+1,wy+1,2,1,waterMid); }
+        else px(x,wx,wy,waveCol);
+      }
+      // 目地ライン(列)
+      rect(x,0,0,1,64,plankDk);
+      rect(x,0,0,64,1,plankDk);
+    } else if(bm==='snow'){
+      // 雪原: 明るい青白い地面 + 白斑 + 足跡
+      const snowBase=rgbToHex(...mix(g,[200,215,230],0.65));
+      const snowHi  =rgbToHex(...mix(g,[240,248,255],0.70));
+      const snowDk  =rgbToHex(...mix(g,[140,165,195],0.45));
+      const trackCol=rgbToHex(...mix(g,[120,145,175],0.40));
+      rect(x,0,0,64,64,snowBase);
+      // 雪の白斑
+      for(let i=0;i<20;i++){
+        const sx=(rnd()*62)|0, sy=(rnd()*62)|0, sw=1+((rnd()*3)|0);
+        rect(x,sx,sy,sw,1,snowHi);
+        if(sw>1) rect(x,sx+1,sy+1,sw-1,1,snowDk);
+      }
+      // 足跡ペア(2点組)
+      for(let i=0;i<5;i++){
+        const fx=(rnd()*58)|0, fy=(rnd()*58)|0;
+        px(x,fx,fy,trackCol); px(x,fx+2,fy+2,trackCol);
+        px(x,fx+1,fy+1,snowDk);
+      }
+      rect(x,0,0,64,1,snowDk);
+      rect(x,0,0,1,64,snowDk);
+    } else if(bm==='city'){
+      // 石畳: 目地+石の光沢
+      const stoneBase=rgbToHex(...mix(g,[85,80,80],0.35));
+      const stoneLi  =rgbToHex(...mix(g,[140,135,130],0.28));
+      const stoneDk  =rgbToHex(...mix(g,[30,28,28],0.30));
+      const grout    =rgbToHex(...mix(g,[20,20,22],0.55));
+      const debris   =rgbToHex(...mix(g,[100,88,70],0.30));
+      rect(x,0,0,64,64,stoneBase);
+      // 石畳の目地(16x16グリッド)
+      for(let gy=0;gy<64;gy+=16) rect(x,0,gy,64,1,grout);
+      for(let gx=0;gx<64;gx+=16) rect(x,gx,0,1,64,grout);
+      // 半ブロックずらしのオフセット目地(煉瓦状)
+      for(let gy=8;gy<64;gy+=32) rect(x,8,gy,56,1,grout);
+      for(let gy=24;gy<64;gy+=32) rect(x,0,gy,56,1,grout);
+      // 石面のハイライト・影
+      for(let i=0;i<14;i++){
+        const sx=(rnd()*62)|0, sy=(rnd()*62)|0;
+        px(x,sx,sy,stoneLi); px(x,sx+1,sy+1,stoneDk);
+      }
+      // 瓦礫・轍の跡
+      for(let i=0;i<6;i++){
+        const dx=(rnd()*60)|0, dy=(rnd()*60)|0;
+        rect(x,dx,dy,2,1,debris); rect(x,dx+1,dy+1,1,1,stoneDk);
+      }
+    } else if(bm==='jungle'){
+      // 南蛮: 湿地の暗緑 + 蔓 + 草叢の斑
+      const mudBase =rgbToHex(...mix(g,[28,55,22],0.50));
+      const grassLi =rgbToHex(...mix(g,[55,110,35],0.45));
+      const grassDk =rgbToHex(...mix(g,[18,40,12],0.55));
+      const vineCol =rgbToHex(...mix(g,[38,80,20],0.52));
+      const mudDk   =rgbToHex(...mix(g,[15,30,10],0.58));
+      rect(x,0,0,64,64,mudBase);
+      // 草叢の斑(不規則)
+      for(let i=0;i<18;i++){
+        const jx=(rnd()*62)|0, jy=(rnd()*62)|0, jw=1+((rnd()*3)|0);
+        const col=(rnd()*2)|0===0?grassLi:grassDk;
+        rect(x,jx,jy,jw,1,col);
+        if((rnd()*2)|0===0) rect(x,jx+1,jy+1,Math.max(1,jw-1),1,mudDk);
+      }
+      // 蔓(斜め1px線)
+      for(let i=0;i<5;i++){
+        let vx=(rnd()*56)|0, vy=(rnd()*56)|0;
+        for(let s=0;s<5;s++){ px(x,vx+s,vy+s,vineCol); if((rnd()*2)|0===0) px(x,vx+s,vy+s+1,mudDk); }
+      }
+      rect(x,0,0,64,1,mudDk);
+      rect(x,0,0,1,64,mudDk);
+    } else {
+      // plain(既定): 元のロジック
+      const dark=mix(g,[0,0,0],0.18), light=mix(g,[255,255,255],0.10), low=mix(g,gr,0.42);
+      rect(x,0,0,64,64,bg.ground);
+      for(let i=0;i<22;i++){
+        const px0=(rnd()*64)|0, py0=(rnd()*64)|0, kind=(rnd()*4)|0;
+        if(kind===0){ rect(x,px0,py0,2,1,rgbToHex(...light)); rect(x,px0+2,py0+1,1,1,rgbToHex(...low)); }
+        else if(kind===1){ rect(x,px0,py0,1,1,rgbToHex(...dark)); rect(x,px0+1,py0,1,1,rgbToHex(...low)); }
+        else if(kind===2){ rect(x,px0,py0,5,1,rgbToHex(...low)); rect(x,px0+2,py0+1,4,1,rgbToHex(...dark)); }
+        else { rect(x,px0,py0,3,1,rgbToHex(...mix(light,[230,220,180],0.25))); px(x,px0+1,py0+1,rgbToHex(...low)); }
+      }
+      rect(x,0,0,64,1,rgbToHex(...mix(g,gr,0.25)));
+      rect(x,0,0,1,64,rgbToHex(...mix(g,gr,0.25)));
     }
-    rect(x,0,0,64,1,rgbToHex(...mix(g,gr,0.25)));
-    rect(x,0,0,1,64,rgbToHex(...mix(g,gr,0.25)));
     cache[key]=c; return c;
   }
 

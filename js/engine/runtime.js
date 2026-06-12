@@ -568,6 +568,12 @@ function spawnBoss(){
   const mn=R.t/60;
   hp*=R.diff.ehp; dmg*=R.diff.edmg;
   const pos=edgePos(60);
+  // BOSS_MECHSで名前が一致したら機構を上書き(fleeだけは絶対に保持)
+  if(window.BOSS_MECHS && window.BOSS_MECHS[name]){
+    const hasFlee=mech.indexOf('flee')>=0;
+    mech=window.BOSS_MECHS[name].slice();
+    if(hasFlee && mech.indexOf('flee')<0) mech.push('flee');
+  }
   const e={x:pos.x,y:pos.y,vx:0,vy:0,dead:false,isBoss:true,
     hp:Math.round(hp), maxHp:Math.round(hp), dmg:dmg*(1+R.stage.growthPerMin*mn*0.3),
     speed:bd.speed||38, r:bd.r||42, hue, name, title, shape, mech:mech.slice(),
@@ -605,9 +611,15 @@ function updateBoss(e,dt){
     e.windup.t-=dt;
     if(e.windup.m!=='charge'){ e.x+=dx/d*e.speed*0.4*dt; e.y+=dy/d*e.speed*0.4*dt; } // charge溜め中は止まって溜める
     if(e.windup.t<=0){ const w=e.windup; e.windup=null; fireBossMech(e,w); }
-    if(e.chargeT){ e.x+=e.vx*dt; e.y+=e.vy*dt; e.chargeT-=dt; if(e.chargeT<=0){e.vx=0;e.vy=0;} }
+    if(e.chargeT){ e.x+=e.vx*dt; e.y+=e.vy*dt; e.chargeT-=dt;
+      if(e.chargeT<=0){ e.vx=0; e.vy=0;
+        if(e._rush3Pending){ e._rush3Pending=false; const p2=R.player; e.windup={m:'rush3',t:0.42,ang:Math.atan2(p2.y-e.y,p2.x-e.x)}; }
+      }
+    }
     return;
   }
+  // guardタイマー管理: guard中はダメージ軽減+盾兵展開。タイムアウトで解除
+  if(e.guardT>0){ e.guardT-=dt; if(e.guardT<=0){ e.dr=Math.max(0.12,e.dr-0.52); e.guardT=0; pushText(e.x,e.y-e.r,'防解除','#aaa',1.0,16); } }
   // 通常接近
   e.x+=dx/d*e.speed*dt; e.y+=dy/d*e.speed*dt;
   if(e.mech.includes('enrage') && !e.enraged && e.hp<e.maxHp*0.35){e.enraged=true;e.speed*=1.5;e.dmg*=1.4;e.enrageFlash=1.4;pushText(e.x,e.y-e.r,'怒・激昂','#ff5252',1.9,28);R.shake=0.45;}
@@ -623,15 +635,96 @@ function updateBoss(e,dt){
     else if(m==='buffAdds'){ forEachNear(e.x,e.y,260,o=>{if(o!==e&&!o.dead&&o.speed<(o._baseSpeed||o.speed)*1.8){o.speed*=1.12;}}); e.mt[m]=rnd(4,6); }
     else if(m==='heal'){ if(e.hp<e.maxHp) {e.hp=Math.min(e.maxHp,e.hp+e.maxHp*0.04);pushText(e.x,e.y-e.r,'回','#69f0ae',1.1,16);} e.mt[m]=rnd(6,9); }
     else if(m==='counter'){ /* 被弾時に runtime 側で処理 */ e.mt[m]=2; }
+    // ── 新機構 ──────────────────────────────────────────────────────────
+    else if(m==='trishot'){ e.windup={m:'trishot',t:0.85}; e.mt[m]=rnd(3.5,5.5); }
+    else if(m==='hexring'){ e.windup={m:'hexring',t:1.0}; e.mt[m]=rnd(4.0,6.0); }
+    else if(m==='rush3'){
+      // 三連突進カウンタ管理。rush3Leftが残っている間は予告→突進を繰り返す
+      if(!e.rush3Left||e.rush3Left<=0){ e.rush3Left=3; }
+      e.windup={m:'rush3',t:0.6,ang:Math.atan2(dy,dx)}; e.mt[m]=rnd(4.0,5.5);
+    }
+    else if(m==='arrowrain'){ e.windup={m:'arrowrain',t:1.0}; e.mt[m]=rnd(4.5,6.5); }
+    else if(m==='firetrap'){ e.windup={m:'firetrap',t:0.7}; e.mt[m]=rnd(5.0,7.0); }
+    else if(m==='guard'){
+      // guard発動: ダメージ大幅減 + 周囲に盾兵召喚
+      e.guardT=3.8; e.dr=Math.min(0.86,e.dr+0.52);
+      for(let i=0;i<3;i++){const a=rnd(TAU);const base=window.ENEMY_ARCH.grunt;const mn2=R.t/60;const en=spawnAt(e.x+Math.cos(a)*52,e.y+Math.sin(a)*52,base,{hue:e.hue},R.stage.hpMul*(1+R.stage.growthPerMin*mn2)*2.2,R.stage.dmgMul*(1+R.stage.growthPerMin*mn2*0.6));R.enemies.push(en);}
+      pushText(e.x,e.y-e.r,'防・盾兵展開','#82b1ff',1.5,22); e.mt[m]=rnd(6.0,9.0);
+    }
     if(e.windup)break;  // 1度に1予告だけ
   }
-  if(e.chargeT){ e.x+=e.vx*dt; e.y+=e.vy*dt; e.chargeT-=dt; if(e.chargeT<=0){e.vx=0;e.vy=0;} }
+  if(e.chargeT){ e.x+=e.vx*dt; e.y+=e.vy*dt; e.chargeT-=dt;
+    if(e.chargeT<=0){ e.vx=0; e.vy=0;
+      // rush3連続突進: 突進完了後に残回数があれば次の溜め予告をセット
+      if(e._rush3Pending){ e._rush3Pending=false; const p2=R.player; e.windup={m:'rush3',t:0.42,ang:Math.atan2(p2.y-e.y,p2.x-e.x)}; }
+    }
+  }
 }
-// 予告終了後に実発動(charge=ロック方向へ突進 / volley・spin=弾幕)
+// 予告終了後に実発動(charge=ロック方向へ突進 / volley・spin=弾幕 / 新機構6種)
 function fireBossMech(e,w){
   if(w.m==='charge'){ e.vx=Math.cos(w.ang)*380; e.vy=Math.sin(w.ang)*380; e.chargeT=0.4; R.shake=0.3; }
   else if(w.m==='volley'){ const n=10;for(let i=0;i<n;i++){const a=i/n*TAU+rnd(-0.1,0.1);R.eproj.push({x:e.x,y:e.y,vx:Math.cos(a)*220,vy:Math.sin(a)*220,r:7,dmg:e.dmg*0.6,life:3,hue:e.hue,pierce:true});} }
   else if(w.m==='spin'){ for(let i=0;i<6;i++){const a=i/6*TAU+R.t;R.eproj.push({x:e.x,y:e.y,vx:Math.cos(a)*180,vy:Math.sin(a)*180,r:6,dmg:e.dmg*0.5,life:2,hue:e.hue,pierce:true});} }
+  // trishot: 前方+左右30°への3連戟弾3発ずつ
+  else if(w.m==='trishot'){
+    const p=R.player, base=Math.atan2(p.y-e.y,p.x-e.x);
+    for(const off of [-0.52,0,0.52]){
+      for(let k=0;k<3;k++){
+        const a=base+off+rnd(-0.06,0.06), delay=k*0.09;
+        // delayで3連射感。即時スポーンだとspeedを段階的に下げて間隔演出
+        const sp=260-k*18;
+        setTimeout(()=>{ if(!R||!e||e.dead)return; R.eproj.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:6,dmg:e.dmg*0.45,life:3.2,hue:e.hue,pierce:false}); }, delay*1000);
+      }
+    }
+    R.shake=0.22;
+  }
+  // hexring: 周囲6方向に妖術弾リングを展開し回転しながら収縮(プレイヤー追尾)
+  else if(w.m==='hexring'){
+    const n=12, spd=160;
+    for(let i=0;i<n;i++){
+      const a=i/n*TAU;
+      R.eproj.push({x:e.x+Math.cos(a)*80,y:e.y+Math.sin(a)*80,vx:Math.cos(a+Math.PI)*spd,vy:Math.sin(a+Math.PI)*spd,r:7,dmg:e.dmg*0.5,life:3.5,hue:e.hue,pierce:true});
+    }
+    // 外周に広がる波も追加
+    for(let i=0;i<6;i++){
+      const a=i/6*TAU+Math.PI/6;
+      R.eproj.push({x:e.x,y:e.y,vx:Math.cos(a)*200,vy:Math.sin(a)*200,r:8,dmg:e.dmg*0.55,life:2.8,hue:e.hue,pierce:true});
+    }
+    R.shake=0.28;
+  }
+  // rush3: ロック方向への高速突進(三連の1回分)
+  else if(w.m==='rush3'){
+    e.vx=Math.cos(w.ang)*460; e.vy=Math.sin(w.ang)*460; e.chargeT=0.32; R.shake=0.35;
+    pushPart(e.x,e.y,'hsl('+e.hue+',90%,55%)',12,220);
+    // 残回数があれば突進終了後に次の予告をセット(chargeT終了 = 突進完了時にセット)
+    if(e.rush3Left>0){
+      e.rush3Left--;
+      if(e.rush3Left>0){
+        // 短いクールの後に次の予告を入れるため、_rush3Pendingフラグで突進完了を検知
+        e._rush3Pending=true;
+      }
+    }
+  }
+  // arrowrain: プレイヤー周辺に矢の雨。着弾円(zone)の warn で予告
+  else if(w.m==='arrowrain'){
+    const p=R.player, count=8;
+    for(let i=0;i<count;i++){
+      const off_x=rnd(-90,90), off_y=rnd(-90,90);
+      const tx=p.x+off_x, ty=p.y+off_y;
+      R.zones.push({x:tx,y:ty,r:44,life:2.0,maxLife:2.0,warn:0.9,tick:0.5,nextTick:0.9,dmg:e.dmg*0.6,hue:8,enemy:true,cool:new Map()});
+    }
+    R.shake=0.18;
+  }
+  // firetrap: 地面数カ所に火計ゾーンを設置
+  else if(w.m==='firetrap'){
+    const p=R.player, count=5;
+    for(let i=0;i<count;i++){
+      const a=rnd(TAU), d=rnd(60,200);
+      const tx=p.x+Math.cos(a)*d, ty=p.y+Math.sin(a)*d;
+      R.zones.push({x:tx,y:ty,r:58,life:5.5,maxLife:5.5,warn:0.75,tick:0.38,nextTick:0.75,dmg:e.dmg*0.38,hue:14,enemy:true,cool:new Map()});
+    }
+    R.shake=0.20;
+  }
 }
 
 // ── 勝敗 ───────────────────────────────────
@@ -1194,7 +1287,8 @@ function render(){
   let sx=0,sy=0; if(R.shake>0&&opt('shake',true)){sx=rnd(-1,1)*R.shake*8;sy=rnd(-1,1)*R.shake*8;}
   const zoom=doomZoom();
   ctx.save(); ctx.translate(CW/2+sx, CH/2+sy); if(zoom!==1)ctx.scale(zoom,zoom); ctx.translate(-R.cam.x, -R.cam.y);
-  drawGrid(bg);
+  const _biome=(window.BIOMES&&window.BIOMES.byNo[R.stage.no])||( window.BIOMES&&window.BIOMES.def)||'plain';
+  drawGrid(bg,_biome);
   drawDoomWorld();
   // 君主シグネチャの場(視認用)
   if(R.lord.sig&&R.lord.sig.slowFieldR){ const r=R.lord.sig.slowFieldR; ctx.beginPath();ctx.arc(R.player.x,R.player.y,r,0,TAU);
@@ -1246,8 +1340,8 @@ function render(){
   drawDoomOverlay();
   if(R.flash>0){ ctx.fillStyle='rgba(255,80,80,'+Math.min(0.4,R.flash*0.4)+')'; ctx.fillRect(0,0,CW,CH); }
 }
-function drawGrid(bg){
-  const pat=ctx.createPattern(window.Sprites.floorTile(bg),'repeat');
+function drawGrid(bg,biome){
+  const pat=ctx.createPattern(window.Sprites.floorTile(bg,biome),'repeat');
   ctx.fillStyle=pat||bg.ground;
   ctx.fillRect(R.cam.x-CW/2-96,R.cam.y-CH/2-96,CW+192,CH+192);
 }
@@ -1267,6 +1361,33 @@ function drawEnemy(e){
       ctx.globalAlpha=0.22+0.22*pulse; ctx.fillStyle='hsl(6,95%,55%)'; ctx.fillRect(0,-hw,len,hw*2);
       ctx.globalAlpha=0.7+0.3*pulse; ctx.fillStyle='#ff5a2a'; ctx.beginPath();ctx.moveTo(len,-hw*1.4);ctx.lineTo(len+26,0);ctx.lineTo(len,hw*1.4);ctx.closePath();ctx.fill();
       ctx.restore(); ctx.globalAlpha=1;
+    } else if(w.m==='rush3'){  // 高速突進予告: 鮮赤のライン(chargeより細く速い)
+      ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(w.ang); const len=380, hw=e.r*0.7;
+      ctx.globalAlpha=0.30+0.28*pulse; ctx.fillStyle='hsl(0,100%,60%)'; ctx.fillRect(0,-hw,len,hw*2);
+      ctx.globalAlpha=0.85+0.15*pulse; ctx.fillStyle='#ff1744';
+      ctx.beginPath();ctx.moveTo(len,-hw*1.6);ctx.lineTo(len+32,0);ctx.lineTo(len,hw*1.6);ctx.closePath();ctx.fill();
+      ctx.restore(); ctx.globalAlpha=1;
+    } else if(w.m==='trishot'){  // 三叉予告: 3方向の破線
+      const p2=R.player, ba=Math.atan2(p2.y-e.y,p2.x-e.x);
+      for(const off of [-0.52,0,0.52]){
+        ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(ba+off);
+        ctx.globalAlpha=0.38+0.28*pulse; ctx.strokeStyle='hsl(45,95%,62%)'; ctx.lineWidth=3; ctx.setLineDash([10,7]);
+        ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(300,0);ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      }
+      ctx.globalAlpha=1;
+    } else if(w.m==='hexring'){  // 六芒リング予告: 蒼い波紋
+      ctx.globalAlpha=0.50+0.38*pulse; ctx.strokeStyle='hsl(210,95%,65%)'; ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(e.x,e.y,e.r+20+pulse*18,0,TAU);ctx.stroke();
+      ctx.globalAlpha=0.30+0.20*pulse; ctx.strokeStyle='hsl(200,95%,80%)'; ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(e.x,e.y,e.r+40+pulse*24,0,TAU);ctx.stroke();
+      ctx.globalAlpha=1;
+    } else if(w.m==='arrowrain'){  // 矢の雨予告: 上から降る点滅矢マーカ
+      ctx.globalAlpha=0.55+0.40*pulse; ctx.fillStyle='hsl(30,90%,55%)';
+      for(let i=0;i<5;i++){ const ax=e.x+Math.cos(i/5*TAU)*e.r*1.4, ay=e.y+Math.sin(i/5*TAU)*e.r*1.4; ctx.fillRect(ax-3,ay-8,6,14); }
+      ctx.globalAlpha=1;
+    } else if(w.m==='firetrap'){  // 火計予告: 橙の波紋リング
+      ctx.globalAlpha=0.45+0.38*pulse; ctx.strokeStyle='hsl(22,95%,55%)'; ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(e.x,e.y,e.r+14+pulse*14,0,TAU);ctx.stroke(); ctx.globalAlpha=1;
     } else {  // volley/spin: 溜めの黄リング
       ctx.globalAlpha=0.45+0.4*pulse; ctx.strokeStyle='hsl(45,100%,60%)'; ctx.lineWidth=3.5;
       ctx.beginPath();ctx.arc(e.x,e.y,e.r+8+pulse*10,0,TAU);ctx.stroke(); ctx.globalAlpha=1; }
