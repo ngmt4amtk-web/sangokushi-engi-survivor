@@ -539,6 +539,88 @@ window.Sprites = (function(){
     return (v&&v instanceof HTMLImageElement)?v:null;
   }
 
+  // ── AI全身絵レイヤ ───────────────────────────
+  // assets/unit/index.json で存在確認してから遅延ロード。face と同方式。
+  const UNIT_IMGS={};
+  let UNIT_LIST=null;
+  try{ fetch('assets/unit/index.json').then(r=>r.json()).then(a=>{ UNIT_LIST=new Set(a); }).catch(()=>{ UNIT_LIST=new Set(); }); }catch(e){ UNIT_LIST=new Set(); }
+
+  // 武将全身絵。主役/ボス/精鋭用。
+  function unitImg(name){
+    if(!name||!UNIT_LIST||!UNIT_LIST.has(name)) return null;
+    if(!(name in UNIT_IMGS)){
+      UNIT_IMGS[name]=null;
+      const im=new Image();
+      im.onload=()=>{ UNIT_IMGS[name]=im; };
+      im.onerror=()=>{ UNIT_IMGS[name]=false; };
+      im.src='assets/unit/'+name+'.png';
+    }
+    const v=UNIT_IMGS[name];
+    return (v&&v instanceof HTMLImageElement)?v:null;
+  }
+
+  // 雑兵クラス全身絵。assets/unit/mob_<class>.png
+  const MOB_IMGS={};
+  let MOB_LIST=null;
+  try{ fetch('assets/unit/index.json').then(r=>r.json()).then(a=>{ MOB_LIST=new Set(a); }).catch(()=>{ MOB_LIST=new Set(); }); }catch(e){ MOB_LIST=new Set(); }
+
+  function mobImg(cls){
+    if(!cls||!MOB_LIST) return null;
+    const key='mob_'+cls;
+    if(!MOB_LIST.has(key)) return null;
+    if(!(key in MOB_IMGS)){
+      MOB_IMGS[key]=null;
+      const im=new Image();
+      im.onload=()=>{ MOB_IMGS[key]=im; };
+      im.onerror=()=>{ MOB_IMGS[key]=false; };
+      im.src='assets/unit/'+key+'.png';
+    }
+    const v=MOB_IMGS[key];
+    return (v&&v instanceof HTMLImageElement)?v:null;
+  }
+
+  // 雑兵+勢力色。hueずらしを一度だけ焼いてキャッシュ。
+  // filter非対応環境(Safari古い等)はそのまま返す。
+  const MOB_TINTED={};
+  function mobTinted(cls, hue){
+    const tKey='mobt_'+cls+'_'+((hue|0));
+    if(tKey in MOB_TINTED) return MOB_TINTED[tKey];
+    const src=mobImg(cls);
+    if(!src){ MOB_TINTED[tKey]=null; return null; }
+    // filter APIが使えるかを一度だけ確認
+    const testCtx=document.createElement('canvas').getContext('2d');
+    const filterOk=typeof testCtx.filter==='string';
+    const {c,x}=mk(src.naturalWidth||src.width,src.naturalHeight||src.height);
+    if(filterOk && hue!==0){
+      x.filter='hue-rotate('+hue+'deg)';
+      x.drawImage(src,0,0);
+      x.filter='none';
+    } else {
+      x.drawImage(src,0,0);
+    }
+    MOB_TINTED[tKey]=c;
+    return c;
+  }
+
+  // ── 足元影 楕円キャッシュ ─────────────────────
+  // サイズ別に数種用意してblit(per-frameの新canvas禁止)
+  const SHADOW_CACHE={};
+  // w=楕円幅, h=楕円高さ(px単位。整数に丸めてキャッシュキー)
+  function shadowEllipse(ew, eh){
+    const kw=(ew|0), kh=(eh|0);
+    const key='shd_'+kw+'_'+kh;
+    if(SHADOW_CACHE[key]) return SHADOW_CACHE[key];
+    const pad=2; // アンチエイリアス余白
+    const W=kw+pad*2, H=kh+pad*2;
+    const {c,x}=mk(W,H);
+    x.fillStyle='rgba(0,0,0,0.28)';
+    x.beginPath();
+    x.ellipse(W/2,H/2,kw/2,kh/2,0,0,Math.PI*2);
+    x.fill();
+    SHADOW_CACHE[key]=c;
+    return c;
+  }
+
   // AI生成の背景アート(assets/bg/*.png)。読み込み完了後はこちらを床に使う
   const BG_IMGS={};
   function biomeImage(bm){
@@ -679,6 +761,7 @@ window.Sprites = (function(){
     general, lordSprite, hero, enemy, bossSprite, minionSprite, jar,
     proj, projType, weaponTip, floorTile,
     face,
+    unitImg, mobImg, mobTinted, shadowEllipse,
     classOf, hash
   };
 })();

@@ -1467,6 +1467,21 @@ function drawGrid(bg,biome){
 }
 function blit(s,x,y,size,flip){ const h=size*s.height/s.width; ctx.save(); ctx.translate(x,y); if(flip)ctx.scale(-1,1); ctx.drawImage(s,-size/2,-h/2,size,h); ctx.restore(); }
 function enemyDrawScale(e){ return (e.isBoss?1.8:((e.elite||e.big)?1.5:1.35))*PACE.enemyDrawMul; }  // PACE.enemyDrawMulで約12%縮小(雑兵28-32px級)
+
+// arch → mob画像クラス対応表。shape/behaviorではなくarch名で引く。
+// 黄巾判定(recolorのname先頭が「黄巾」)は呼び出し側で turban_* に差し替え。
+const ARCH_TO_MOB={
+  grunt:'sword', rusher:'spear', brute:'shield', shield:'shield',
+  archer:'bow', cavalry:'cavalry', shaman:'mage', bomber:'bomb',
+  beamer:'mage', lancer:'cavalry',
+};
+// 足元影をblitするヘルパ(全ユニット共用)
+function drawUnitShadow(x,y,unitW){
+  const ew=Math.max(4,unitW*0.7)|0, eh=Math.max(2,(ew*0.38)|0);
+  const sc=window.Sprites.shadowEllipse(ew,eh);
+  ctx.drawImage(sc,x-ew/2-1,y-eh/2-1);
+}
+
 function drawEnemy(e){
   // 画面外の雑魚は描画しない(終盤の大物量でも描画負荷を抑える)
   const ds=enemyDrawScale(e);
@@ -1474,6 +1489,25 @@ function drawEnemy(e){
   const frame=((R.t*7+e.x*0.01+e.y*0.01)|0)&1;
   const s= e.isBoss? window.Sprites.bossSprite(e.shape,e.hue,frame) : window.Sprites.enemy(e.shape,e.hue,e.r>22?1:0,frame);
   const size=e.r*2.3*ds; const flip=R.player.x<e.x;
+
+  // AI全身絵を取得 --------------------------------------------------
+  // 精鋭/ボスは unitImg(名前) 優先。雑兵は mobTinted(クラス, hue)。
+  let aiImg=null;
+  if(e.isBoss || e.elite){
+    if(e.name && window.Sprites.unitImg) aiImg=window.Sprites.unitImg(e.name);
+  }
+  if(!aiImg && !e.isBoss && window.Sprites.mobTinted){
+    // arch名から mob クラスを決定
+    const archKey=e._arch||(e.shape==='horse'?'cavalry':(e.shape==='mage'?'shaman':(e.shape==='bomb'?'bomber':(e.shape==='shield'?'shield':(e.shape==='archer'?'archer':(e.shape==='light'?'rusher':'grunt'))))));
+    let mobCls=ARCH_TO_MOB[archKey]||'sword';
+    // 黄巾判定: recolor の name に「黄巾」が含まれる → turban 系
+    if(e.name&&e.name.indexOf&&(e.name.indexOf('黄巾')>=0||e.name.indexOf('太平')>=0)){
+      if(mobCls==='sword') mobCls='turban_sword';
+      else if(mobCls==='spear') mobCls='turban_spear';
+      else if(mobCls==='bow') mobCls='turban_bow';
+    }
+    aiImg=window.Sprites.mobTinted(mobCls, e.hue||0);
+  }
   // ボスの予告テレグラフ(スプライトの下に描く)
   if(e.isBoss && e.windup){ const w=e.windup, pulse=0.5+0.5*Math.sin(R.t*20);
     if(w.m==='charge'){  // 突進方向の赤い予告ライン＋矢印(避ける)
@@ -1518,9 +1552,22 @@ function drawEnemy(e){
     ctx.globalAlpha=.22+.34*pulse; ctx.strokeStyle=beam?('hsl('+(e.beamHue!=null?e.beamHue:315)+',92%,62%)'):'hsl(8,95%,58%)';
     ctx.lineWidth=beam?7:e.r*1.6; ctx.setLineDash([12,9]);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(beam?640:360,0); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); ctx.globalAlpha=1; }
+  // 足元の影(AI背景の上に「置いてある感」を出す)
+  drawUnitShadow(e.x, e.y+size*0.42, size);
+
   if(e.hitFlash>0){ ctx.globalAlpha=1; }
-  blit(s,e.x,e.y,size,flip);
-  if(e.hitFlash>0){ ctx.globalAlpha=e.hitFlash*4; ctx.fillStyle='#fff'; ctx.fillRect(e.x-size/2,e.y-size/2,size,size*s.height/s.width); ctx.globalAlpha=1; }
+  if(aiImg){
+    // AI全身絵で描画(高さ=雑兵30px / 精鋭52px / ボス72px 基準でスケール)
+    const targetH = e.isBoss?72:(e.elite?52:30);
+    const aiW = targetH * aiImg.naturalWidth / aiImg.naturalHeight;
+    ctx.save(); ctx.translate(e.x,e.y); if(flip)ctx.scale(-1,1);
+    ctx.drawImage(aiImg,-aiW/2,-targetH/2,aiW,targetH);
+    ctx.restore();
+    if(e.hitFlash>0){ ctx.globalAlpha=e.hitFlash*4; ctx.fillStyle='#fff'; ctx.fillRect(e.x-aiW/2,e.y-targetH/2,aiW,targetH); ctx.globalAlpha=1; }
+  } else {
+    blit(s,e.x,e.y,size,flip);
+    if(e.hitFlash>0){ ctx.globalAlpha=e.hitFlash*4; ctx.fillStyle='#fff'; ctx.fillRect(e.x-size/2,e.y-size/2,size,size*s.height/s.width); ctx.globalAlpha=1; }
+  }
   // 激昂(enrage): 赤いオーラで「強くなった」を明示
   if(e.isBoss && e.enraged){ ctx.globalAlpha=Math.min(0.6,0.22+0.13*Math.sin(R.t*6)+(e.enrageFlash>0?e.enrageFlash*0.5:0)); ctx.strokeStyle='#ff5252'; ctx.lineWidth=3; ctx.beginPath();ctx.arc(e.x,e.y,e.r+6,0,TAU);ctx.stroke(); ctx.globalAlpha=1; }
   if(e.elite||e.isBoss){ // HPバー(頭上)
@@ -1537,9 +1584,24 @@ function drawPlayer(){
   const attacking=p.atkT>0, atkAng=(p.atkAng!=null?p.atkAng:Math.atan2(p.facing.y,p.facing.x));
   const s=window.Sprites.hero(g,((R.t*8)|0)&1,attacking); const flip=(attacking?Math.cos(atkAng):p.facing.x)<0;
   const fallen=R.doomFx&&R.doomFx.fallen, size=s.width*3.9*PACE.heroDrawMul;  // PACE.heroDrawMulで約12%縮小(主役36-40px級)
-  // 影
-  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath();ctx.ellipse(p.x,p.y+(fallen?18:17),fallen?26:22,fallen?8:7,0,0,TAU);ctx.fill();
+
+  // AI全身絵を優先取得
+  const aiImg=window.Sprites.unitImg?window.Sprites.unitImg(g.name):null;
+  const heroH=44; // 主役基準高さ(px)
+
+  // 足元の影(AI背景の上に「置いてある感」)
+  const _shW = aiImg ? heroH*aiImg.naturalWidth/aiImg.naturalHeight : size;
+  drawUnitShadow(p.x, p.y+(fallen?18:17), _shW);
+
   if(fallen){
+    if(aiImg){
+      const aiW=heroH*aiImg.naturalWidth/aiImg.naturalHeight;
+      ctx.save(); ctx.translate(p.x,p.y+7); ctx.rotate(Math.PI/2); if(flip)ctx.scale(-1,1);
+      ctx.filter='grayscale(1) saturate(.35) contrast(.82)';
+      ctx.drawImage(aiImg,-aiW/2,-heroH/2,aiW,heroH);
+      ctx.filter='none'; ctx.globalAlpha=0.45; ctx.fillStyle='rgba(70,0,0,.34)'; ctx.fillRect(-aiW/2,-heroH/2,aiW,heroH);
+      ctx.restore(); ctx.globalAlpha=1; return;
+    }
     const h=size*s.height/s.width;
     ctx.save(); ctx.translate(p.x,p.y+7); ctx.rotate(Math.PI/2); if(flip)ctx.scale(-1,1);
     ctx.filter='grayscale(1) saturate(.35) contrast(.82)';
@@ -1547,8 +1609,28 @@ function drawPlayer(){
     ctx.filter='none'; ctx.globalAlpha=0.45; ctx.fillStyle='rgba(70,0,0,.34)'; ctx.fillRect(-size/2,-h/2,size,h);
     ctx.restore(); ctx.globalAlpha=1; return;
   }
+
   if(p.ifr>0 && Math.floor(p.ifr*20)%2===0)ctx.globalAlpha=0.4;
-  blit(s,p.x,p.y,size,flip); ctx.globalAlpha=1;
+
+  if(aiImg){
+    const aiW=heroH*aiImg.naturalWidth/aiImg.naturalHeight;
+    // 歩行バウンド: frame 0/1 で上下2px。移動中は±4度の傾き。
+    const frame=((R.t*8)|0)&1;
+    const moving=(Math.abs(p.facing.x)>0.1||Math.abs(p.facing.y)>0.1)&&R.running&&!R.paused;
+    const bobY=moving?(frame?-2:0):0;
+    const tiltAng=moving?((p.facing.x>0?1:-1)*4*Math.PI/180):0;
+    ctx.save();
+    ctx.translate(p.x, p.y+bobY);
+    if(flip)ctx.scale(-1,1);
+    if(tiltAng)ctx.rotate(tiltAng);
+    ctx.drawImage(aiImg,-aiW/2,-heroH/2,aiW,heroH);
+    ctx.restore();
+    ctx.globalAlpha=1;
+  } else {
+    blit(s,p.x,p.y,size,flip);
+    ctx.globalAlpha=1;
+  }
+
   if(attacking)drawPlayerWeaponLunge(g.weapon,p.x,p.y,atkAng);
 }
 function drawPlayerWeaponLunge(w,x,y,ang){
