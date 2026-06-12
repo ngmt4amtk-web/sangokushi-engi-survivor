@@ -583,10 +583,11 @@ window.Sprites = (function(){
   // filter非対応環境(Safari古い等)はそのまま返す。
   const MOB_TINTED={};
   function mobTinted(cls, hue){
+    if(cls&&cls.indexOf('turban')===0) hue=0; // 黄巾の頭巾は色相を回さない(緑化防止)
     const tKey='mobt_'+cls+'_'+((hue|0));
     if(tKey in MOB_TINTED) return MOB_TINTED[tKey];
     const src=mobImg(cls);
-    if(!src){ MOB_TINTED[tKey]=null; return null; }
+    if(!src) return null; // 画像ロード完了までキャッシュしない(完了後に焼く)
     // filter APIが使えるかを一度だけ確認
     const testCtx=document.createElement('canvas').getContext('2d');
     const filterOk=typeof testCtx.filter==='string';
