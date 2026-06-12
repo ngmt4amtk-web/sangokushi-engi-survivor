@@ -1134,3 +1134,204 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 .face-smooth{
   image-rendering:auto !important;
 }
+
+/* ════════════════════════════════════════════════════
+   ノベルゲーム式会話劇レンダラ (vn.js / window.VN)
+   ════════════════════════════════════════════════════ */
+#vn-ov{
+  position:fixed;inset:0;z-index:90;
+  background:#000;
+  display:none;flex-direction:column;
+}
+#vn-ov.show{display:flex;}
+
+/* タップゾーン: 上半=戻る / 下半=進む */
+.vn-tap-zone{
+  position:absolute;left:0;right:0;z-index:91;
+  cursor:pointer;
+}
+.vn-tap-top{top:0;height:55%;}
+.vn-tap-bot{bottom:0;height:45%;}
+
+/* ── 地の文 ─────────────────────────────── */
+.vn-narrator{
+  position:absolute;inset:0;
+  display:none;
+  align-items:center;justify-content:center;
+  padding:clamp(24px,8vw,60px);
+  font-family:var(--mincho);
+  font-size:clamp(15px,4.2vw,21px);
+  line-height:1.95;
+  color:#f0e8d6;
+  text-align:center;
+  white-space:pre-wrap;
+  text-shadow:0 1px 4px rgba(0,0,0,.8);
+  z-index:92;
+  pointer-events:none;
+}
+
+/* ── 見出し行 ────────────────────────────── */
+.vn-heading{
+  position:absolute;inset:0;
+  display:none;
+  align-items:center;justify-content:center;
+  font-family:var(--mincho);
+  font-size:clamp(16px,4.8vw,26px);
+  color:var(--gold2);
+  text-align:center;
+  letter-spacing:.12em;
+  text-shadow:0 2px 8px rgba(217,178,90,.55);
+  z-index:92;
+  pointer-events:none;
+}
+
+/* ── 会話ウィンドウ ───────────────────────── */
+.vn-dlg{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  display:none;
+  align-items:flex-end;
+  padding:0 12px 16px;
+  gap:10px;
+  z-index:92;
+  pointer-events:none;
+}
+/* 墨色半透明・金縁パネル */
+.vn-dlg::before{
+  content:"";
+  position:absolute;inset:0;
+  background:rgba(10,7,4,.82);
+  border-top:1px solid rgba(217,178,90,.55);
+  border-left:1px solid rgba(217,178,90,.22);
+  border-right:1px solid rgba(217,178,90,.22);
+  border-radius:20px 20px 0 0;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+}
+/* 話者肖像エリア */
+.vn-portrait{
+  position:relative;
+  flex:0 0 72px;
+  width:72px;
+  height:72px;
+  display:none;
+  align-self:flex-end;
+  margin-bottom:4px;
+}
+.vn-port-img{
+  width:72px;height:72px;
+  object-fit:cover;
+  border-radius:10px;
+  border:1px solid rgba(217,178,90,.55);
+  image-rendering:pixelated;
+  display:block;
+}
+/* トークエリア(名前+セリフ) */
+#vn-talk-area{
+  position:relative;
+  flex:1 1 auto;
+  min-width:0;
+  padding:12px 12px 8px;
+}
+/* 話者名プレート */
+.vn-speaker{
+  font-family:var(--mincho);
+  font-size:clamp(13px,3.8vw,18px);
+  font-weight:800;
+  color:var(--gold2);
+  margin-bottom:6px;
+  letter-spacing:.06em;
+  text-shadow:0 1px 3px rgba(0,0,0,.8);
+}
+/* セリフ本文 */
+.vn-text{
+  font-size:clamp(14px,4vw,18px);
+  line-height:1.82;
+  color:#f0e8d6;
+  white-space:pre-wrap;
+  font-family:var(--mincho);
+  text-shadow:0 1px 3px rgba(0,0,0,.7);
+  min-height:2.2em;
+}
+
+/* ── ログボタン ──────────────────────────── */
+.vn-log-btn{
+  position:absolute;
+  top:12px;left:14px;
+  z-index:95;
+  font-size:12px;
+  color:rgba(240,232,214,.6);
+  background:rgba(20,14,8,.62);
+  border:1px solid rgba(217,178,90,.28);
+  border-radius:8px;
+  padding:5px 10px;
+  cursor:pointer;
+  transition:.12s;
+  pointer-events:auto;
+}
+.vn-log-btn:hover{color:var(--gold2);border-color:var(--gold2);}
+
+/* ── ログパネル ──────────────────────────── */
+.vn-log{
+  position:absolute;inset:0;
+  z-index:96;
+  background:rgba(8,5,2,.92);
+  display:none;flex-direction:column;
+  pointer-events:auto;
+}
+.vn-log.show{display:flex;}
+.vn-log-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px 10px;
+  border-bottom:1px solid var(--line);
+  font-family:var(--mincho);
+  font-size:16px;color:var(--gold2);font-weight:700;
+  flex:0 0 auto;
+}
+.vn-log-close{
+  background:none;border:none;color:var(--txt2);font-size:20px;
+  cursor:pointer;padding:0 4px;line-height:1;
+}
+.vn-log-body{
+  flex:1 1 auto;overflow-y:auto;padding:12px 16px 24px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.vn-log-h{
+  font-family:var(--mincho);color:var(--gold2);
+  font-size:14px;text-align:center;letter-spacing:.1em;
+  cursor:pointer;padding:6px;border-radius:8px;
+}
+.vn-log-h:hover{background:rgba(217,178,90,.1);}
+.vn-log-n{
+  font-family:var(--mincho);color:#d0c8b6;
+  font-size:13.5px;line-height:1.8;
+  cursor:pointer;padding:6px;border-radius:8px;
+}
+.vn-log-n:hover{background:rgba(255,255,255,.05);}
+.vn-log-s{
+  font-size:13.5px;line-height:1.8;color:#d0c8b6;
+  cursor:pointer;padding:6px;border-radius:8px;
+  font-family:var(--mincho);
+}
+.vn-log-s:hover{background:rgba(255,255,255,.05);}
+.vn-log-spk{
+  display:inline-block;color:var(--gold2);font-weight:700;
+  margin-right:8px;font-size:13px;
+}
+
+/* ── モバイル縦優先: 最小高を確保 ────────── */
+@media (max-height:500px){
+  .vn-dlg{padding:0 8px 8px;}
+  .vn-portrait{width:52px;height:52px;flex:0 0 52px;}
+  .vn-port-img{width:52px;height:52px;}
+  .vn-text{font-size:13px;}
+}
+
+/* ── リーダー: VN表示モード追記 ─────────────
+   reader.js が vn-mode クラスを #readerov に追加した時
+   既存ページビューを隠す                           */
+#readerov.vn-mode #rdr-body,
+#readerov.vn-mode #rdr-ctrl,
+#readerov.vn-mode #rdr-header{
+  display:none;
+}

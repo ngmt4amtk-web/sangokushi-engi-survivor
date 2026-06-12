@@ -278,6 +278,23 @@
     }
   }
 
+  // ── VNモード: data.script配列でVN.playを使う ─────────
+  function openVnMode(no, data){
+    // しおり: 行番号保存(VNモード専用)
+    var VN_POS_KEY = 'engi-reader-vn-pos';
+    function saveVnPos(n,i){ try{ var o=JSON.parse(localStorage.getItem(VN_POS_KEY)||'{}'); o[n]=i; localStorage.setItem(VN_POS_KEY,JSON.stringify(o)); }catch(e){} }
+
+    var script = data.script;
+    var onVnEnd = function(){
+      markDone(no);
+      refreshReadListBadge(no);
+    };
+    window.VN.play(script, {}, onVnEnd);
+    // 最終行をしおりとして記録(読み始めを保存する用途)
+    saveVnPos(no, script.length - 1);
+    if(window.ACH) window.ACH.event('readerOpen',{no});
+  }
+
   // ── 開く ─────────────────────────────────────────
   async function open(no){
     buildOverlay();
@@ -297,7 +314,13 @@
       return;
     }
 
-    // pages 配列を構築
+    // ── script配列があればVNモード優先 ──────────────────
+    if(Array.isArray(data.script) && data.script.length > 0 && window.VN){
+      openVnMode(no, data);
+      return;
+    }
+
+    // ── 通常 pages モード ──────────────────────────────
     if(Array.isArray(data.pages) && data.pages.length > 0){
       pages = data.pages;
     } else {

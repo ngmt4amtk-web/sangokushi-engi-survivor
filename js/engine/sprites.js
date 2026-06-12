@@ -467,7 +467,7 @@ window.Sprites = (function(){
   // 16方向キャッシュを外部から強制生成するヘルパ(FX画像が後から届いた場合に再焼き)
   function buildProjCache(type, hue, f){
     // fxImgがある場合はそちらをベースに16方向焼く
-    const fxSrc=fxImg('proj_'+type+'.png');
+    const fxSrc=fxImg(((type==='arrow'&&!(hue>=42&&hue<=75))?'proj_arrow_enemy':'proj_'+type)+'.png'); // 敵の矢は赤羽版
     const src=fxSrc ? (()=>{
       // fxSrcをbaseキャンバスに等サイズで描いてキャッシュキーに乗せる
       const bk='proj_base_'+type+'_'+hue+'_'+f;
@@ -529,7 +529,7 @@ window.Sprites = (function(){
     const key='proj_base_'+type+'_'+hue+'_'+((frame||0)&1);
     if(cache[key]) return cache[key];
     // FX画像が届いていれば優先使用(新規typeも含む)
-    const fxSrc=fxImg('proj_'+type+'.png');
+    const fxSrc=fxImg(((type==='arrow'&&!(hue>=42&&hue<=75))?'proj_arrow_enemy':'proj_'+type)+'.png'); // 敵の矢は赤羽版
     if(fxSrc){
       const {c:bc,x:bx}=mk(fxSrc.naturalWidth||fxSrc.width,fxSrc.naturalHeight||fxSrc.height);
       bx.drawImage(fxSrc,0,0);

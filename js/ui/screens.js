@@ -233,11 +233,11 @@ function renderTitle(){
         logoEl.parentNode.replaceChild(im,logoEl);
       }
     } else if(window.Sprites&&window.Sprites.fxImg){
-      // FX_LISTがまだnullの場合(fetch中): 50ms後に再試行
+      // FX_LIST取得/画像ロード待ち: 200ms間隔で最大15回再試行
       const logoEl=c.querySelector('.tl-logo');
-      if(logoEl&&!logoEl._logoTried){
-        logoEl._logoTried=true;
-        setTimeout(applyLogoImg,50);
+      if(logoEl){
+        logoEl._logoTried=(logoEl._logoTried||0)+1;
+        if(logoEl._logoTried<=15) setTimeout(applyLogoImg,200);
       }
     }
   })();
@@ -415,8 +415,15 @@ function buildLord(gen){
 }
 
 // ── 黒地白文字タイプライター(storyPre/幕pre共通) ─
-// text表示→タップで全文→再タップで next()
+// sc.preScript(スクリプト配列)があればVN.playへ委譲。
+// なければ従来のページ送りタイプライター(完全フォールバック)。
 function showScenePre(sc, next){
+  // ── VNスクリプト優先 ──────────────────────────────────
+  if(sc && Array.isArray(sc.preScript) && sc.preScript.length > 0 && window.VN){
+    window.VN.play(sc.preScript, {}, next);
+    return;
+  }
+  // ── 従来フォールバック ────────────────────────────────
   const ov=$('#sceneov');
   const box=$('#scenebox'); box.className='sb-typewriter';
   const chapIdx = chap ? chap.idx : 0;
@@ -747,10 +754,19 @@ function shareResult(res){
 function renderPostStory(res){
   // 結末も冒頭と同じノベルゲーム式ページ送りで読ませてから、褒賞画面へ
   const st=res.stage;
-  const _post=((((window.CHAPTER_SCENES||{})[st.no])||[]).map(s=>s&&s.post).filter(Boolean).pop())||st.storyPost||'';
+  const scenes=((window.CHAPTER_SCENES||{})[st.no])||[];
+  // postScript(VN配列)があればVN優先。なければpost(テキスト)→従来フォールバック
+  const lastScene = scenes[scenes.length-1]||{};
+  const _postScript = lastScene.postScript || null;
+  const _post = (scenes.map(s=>s&&s.post).filter(Boolean).pop())||st.storyPost||'';
   const go=()=>{ renderHeroRecord(res); show('s-story'); };
-  if(_post){ showScenePre({pre:_post, markText:`第${st.no}回 『${st.name}』 ─ 結末`, lastLabel:'▼ 褒賞へ'}, go); }
-  else go();
+  if(_postScript && Array.isArray(_postScript) && _postScript.length > 0 && window.VN){
+    window.VN.play(_postScript, {}, go);
+  } else if(_post){
+    showScenePre({pre:_post, markText:`第${st.no}回 『${st.name}』 ─ 結末`, lastLabel:'▼ 褒賞へ'}, go);
+  } else {
+    go();
+  }
 }
 // ── 英雄録(段階解禁式の英雄図鑑) ─────────────────
 function renderHeroRecord(res){

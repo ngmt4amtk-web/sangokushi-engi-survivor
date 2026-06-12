@@ -78,6 +78,9 @@ async function serveStatic(page){
     if(hud) break;
     const card=await page.$('#chaptercard.show');
     if(card){ await page.click('#chaptercard'); await page.waitForTimeout(150); continue; }
+    const vn=await page.$('#vn-ov.show');
+    if(vn){ if(!global.__vnshot){ global.__vnshot=1; await page.waitForTimeout(600); await page.screenshot({path:SHOT+'03b_vn.png'}); }
+      await page.evaluate(()=>window.VN&&window.VN.skip&&window.VN.skip()); await page.waitForTimeout(250); continue; }
     const twShow=await page.$('#sceneov.show');
     if(twShow){
       await page.click('#sceneov'); // 1タップ目: 全文表示
@@ -118,6 +121,8 @@ async function serveStatic(page){
     if(dg){ await dg.click(); await page.waitForTimeout(500);
       await page.evaluate(()=>{ const R=window.G.getR(); if(R&&!R.over){ const d=(R.scene&&R.scene.dur)||R.stage.dur; R.t=Math.max(R.t,d-0.01); R.nextBossT=Math.min(R.nextBossT,R.t-1); } });
       continue; }
+    const vn2=await page.$('#vn-ov.show');
+    if(vn2){ await page.evaluate(()=>window.VN&&window.VN.skip&&window.VN.skip()); await page.waitForTimeout(300); continue; }
     // タイプライター(幕間pre): 2回タップでスキップ→開戦
     const tw=await page.$('#sceneov.show .tw-text');
     if(tw){ await page.click('#sceneov'); await page.waitForTimeout(120); await page.click('#sceneov'); await page.waitForTimeout(400);
@@ -133,7 +138,9 @@ async function serveStatic(page){
     await page.click('#r-next');
     // 後半ストーリー → 英雄録
     // storyPre/post がある場合、sceneov タイプライターを2タップで読み飛ばす
-    for(let i=0;i<6;i++){
+    for(let i=0;i<8;i++){
+      const vn=await page.$('#vn-ov.show');
+      if(vn){ await page.evaluate(()=>window.VN&&window.VN.skip&&window.VN.skip()); await page.waitForTimeout(300); continue; }
       const tw=await page.$('#sceneov.show');
       if(!tw) break;
       await page.click('#sceneov'); await page.waitForTimeout(120);
@@ -184,8 +191,18 @@ async function serveStatic(page){
       console.warn('WARN: .rcard[data-no="1"] not found – chapter 1 may not be cleared');
     } else {
       await readCard.click();
-      // #readerov.show を待つ
-      await page.waitForSelector('#readerov.show',{timeout:5000});
+      // scriptがある章はVNモードで開く(第1回)。その場合はVN動作を検証して終わる
+      await page.waitForSelector('#vn-ov.show, #readerov.show',{timeout:5000});
+      if(await page.$('#vn-ov.show')){
+        await page.waitForTimeout(700);
+        await page.screenshot({path:SHOT+'10_reader_vn.png'});
+        await page.click('#vn-ov'); await page.waitForTimeout(200);
+        await page.click('#vn-ov'); await page.waitForTimeout(400);
+        await page.screenshot({path:SHOT+'11_reader_vn2.png'});
+        await page.evaluate(()=>window.VN&&window.VN.skip&&window.VN.skip());
+        await page.waitForTimeout(400);
+        console.log('READER VN mode: ok');
+      } else {
       const readerChk=await page.evaluate(()=>{
         const ov=document.getElementById('readerov');
         const pager=document.getElementById('rdr-pager');
@@ -256,6 +273,7 @@ async function serveStatic(page){
       const readerClosed=await page.evaluate(()=>!document.getElementById('readerov').classList.contains('show'));
       console.log('READER closed:', readerClosed);
       if(!readerClosed) errors.push('READER: overlay still visible after close');
+      }
     }
   }
 
