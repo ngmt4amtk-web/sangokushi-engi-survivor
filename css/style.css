@@ -1136,146 +1136,217 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 }
 
 /* ════════════════════════════════════════════════════
-   ノベルゲーム式会話劇レンダラ (vn.js / window.VN)
+   ノベルゲーム式会話劇レンダラ v2 (vn.js / window.VN)
    ════════════════════════════════════════════════════ */
+
+/* ── オーバーレイ基盤 ────────────────────────────── */
 #vn-ov{
   position:fixed;inset:0;z-index:90;
-  background:#000;
-  display:none;flex-direction:column;
+  display:none;
 }
-#vn-ov.show{display:flex;}
+#vn-ov.show{display:block;}
+@keyframes vnFadeOut{to{opacity:0;}}
+#vn-ov.vn-fadeout{animation:vnFadeOut .26s ease forwards;}
 
-/* タップゾーン: 上半=戻る / 下半=進む */
+/* ── 背景: 墨#0c0a09 + 周辺ビネット ─────────────── */
+#vn-bg{
+  position:absolute;inset:0;
+  background:#0c0a09;
+  background-image:radial-gradient(ellipse 80% 80% at 50% 50%, rgba(0,0,0,0) 52%, rgba(0,0,0,.62) 100%);
+}
+
+/* ── タップゾーン: 左25%=戻る / 右75%=進む ─────── */
 .vn-tap-zone{
-  position:absolute;left:0;right:0;z-index:91;
+  position:absolute;top:0;bottom:0;z-index:91;
   cursor:pointer;
 }
-.vn-tap-top{top:0;height:55%;}
-.vn-tap-bot{bottom:0;height:45%;}
+.vn-tap-left{ left:0;width:25%; }
+.vn-tap-right{ right:0;width:75%; }
 
-/* ── 地の文 ─────────────────────────────── */
+/* ── 地の文 ─────────────────────────────────────── */
 .vn-narrator{
   position:absolute;inset:0;
   display:none;
   align-items:center;justify-content:center;
-  padding:clamp(24px,8vw,60px);
+  padding:clamp(24px,8vw,64px) clamp(20px,6vw,56px);
   font-family:var(--mincho);
-  font-size:clamp(15px,4.2vw,21px);
-  line-height:1.95;
+  font-size:17px;
+  line-height:1.9;
   color:#f0e8d6;
-  text-align:center;
+  text-align:justify;
   white-space:pre-wrap;
   text-shadow:0 1px 4px rgba(0,0,0,.8);
   z-index:92;
   pointer-events:none;
 }
 
-/* ── 見出し行 ────────────────────────────── */
+/* ── 見出し行 ───────────────────────────────────── */
 .vn-heading{
   position:absolute;inset:0;
   display:none;
   align-items:center;justify-content:center;
   font-family:var(--mincho);
-  font-size:clamp(16px,4.8vw,26px);
+  font-size:clamp(15px,4.4vw,24px);
   color:var(--gold2);
   text-align:center;
   letter-spacing:.12em;
   text-shadow:0 2px 8px rgba(217,178,90,.55);
   z-index:92;
   pointer-events:none;
+  gap:16px;
+}
+/* 左右に細罫線 */
+.vn-heading::before,.vn-heading::after{
+  content:"";
+  flex:1;max-width:80px;
+  height:1px;
+  background:linear-gradient(90deg, transparent, rgba(217,178,90,.55), transparent);
+}
+.vn-heading::before{background:linear-gradient(90deg, transparent, rgba(217,178,90,.55));}
+.vn-heading::after {background:linear-gradient(90deg, rgba(217,178,90,.55), transparent);}
+
+/* ── 肖像カード(ウィンドウ上に重なる大判) ───────── */
+.vn-portrait-wrap{
+  position:absolute;
+  left:12px;
+  bottom:138px; /* ウィンドウ高さ + ずれ */
+  width:112px;height:112px;
+  display:none;
+  z-index:93;
+  filter:drop-shadow(0 4px 14px rgba(0,0,0,.7));
+}
+.vn-portrait-wrap.vn-port-dim{
+  filter:drop-shadow(0 4px 14px rgba(0,0,0,.7)) brightness(.7);
+  transition:filter .2s;
+}
+/* 話者交代アニメ: 下から8pxスライド+フェード */
+@keyframes vnPortIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.vn-portrait-wrap.vn-port-in{
+  animation:vnPortIn .16s ease forwards;
+}
+.vn-port-img{
+  width:112px;height:112px;
+  object-fit:cover;
+  border-radius:8px;
+  border:2px solid rgba(217,178,90,.75);
+  image-rendering:auto;
+  display:block;
 }
 
-/* ── 会話ウィンドウ ───────────────────────── */
+/* ── 会話ウィンドウ ─────────────────────────────── */
 .vn-dlg{
   position:absolute;
-  bottom:0;left:0;right:0;
+  bottom:0;left:12px;right:12px;
   display:none;
-  align-items:flex-end;
-  padding:0 12px 16px;
-  gap:10px;
+  min-height:124px;
+  border-radius:14px 14px 0 0;
+  background:linear-gradient(180deg, rgba(10,7,4,.88) 0%, rgba(6,4,2,.94) 100%);
+  border:1px solid rgba(217,178,90,.55);
+  border-bottom:none;
+  box-shadow:0 -4px 22px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
   z-index:92;
   pointer-events:none;
 }
-/* 墨色半透明・金縁パネル */
-.vn-dlg::before{
-  content:"";
-  position:absolute;inset:0;
-  background:rgba(10,7,4,.82);
-  border-top:1px solid rgba(217,178,90,.55);
-  border-left:1px solid rgba(217,178,90,.22);
-  border-right:1px solid rgba(217,178,90,.22);
-  border-radius:20px 20px 0 0;
-  backdrop-filter:blur(4px);
-  -webkit-backdrop-filter:blur(4px);
-}
-/* 話者肖像エリア */
-.vn-portrait{
-  position:relative;
-  flex:0 0 72px;
-  width:72px;
-  height:72px;
+
+/* 名前プレート: ウィンドウ上辺に重なるタブ */
+.vn-speaker-tab{
+  position:absolute;
+  top:-28px;
+  left:136px; /* 肖像カード右に配置 */
   display:none;
-  align-self:flex-end;
-  margin-bottom:4px;
-}
-.vn-port-img{
-  width:72px;height:72px;
-  object-fit:cover;
-  border-radius:10px;
+  padding:4px 16px 0;
+  background:#0a0704;
   border:1px solid rgba(217,178,90,.55);
-  image-rendering:pixelated;
-  display:block;
-}
-/* トークエリア(名前+セリフ) */
-#vn-talk-area{
-  position:relative;
-  flex:1 1 auto;
-  min-width:0;
-  padding:12px 12px 8px;
-}
-/* 話者名プレート */
-.vn-speaker{
+  border-bottom:none;
+  border-radius:8px 8px 0 0;
   font-family:var(--mincho);
-  font-size:clamp(13px,3.8vw,18px);
-  font-weight:800;
+  font-size:clamp(13px,3.8vw,16px);
+  font-weight:700;
   color:var(--gold2);
-  margin-bottom:6px;
-  letter-spacing:.06em;
-  text-shadow:0 1px 3px rgba(0,0,0,.8);
+  letter-spacing:.08em;
+  white-space:nowrap;
+  line-height:24px;
 }
+
+/* ウィンドウ内テキストエリア */
+#vn-dlg-inner{
+  padding:14px 16px 18px 16px;
+  position:relative;
+}
+
 /* セリフ本文 */
 .vn-text{
-  font-size:clamp(14px,4vw,18px);
-  line-height:1.82;
+  font-size:17px;
+  line-height:1.9;
   color:#f0e8d6;
   white-space:pre-wrap;
   font-family:var(--mincho);
   text-shadow:0 1px 3px rgba(0,0,0,.7);
-  min-height:2.2em;
+  min-height:2.4em;
+  display:block;
 }
 
-/* ── ログボタン ──────────────────────────── */
-.vn-log-btn{
+/* ▼ 点滅インジケータ */
+.vn-arrow{
   position:absolute;
-  top:12px;left:14px;
+  right:14px;bottom:10px;
+  color:var(--gold2);
+  font-size:13px;
+  animation:vnArrow 1s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes vnArrow{50%{opacity:.2;}}
+
+/* ── 右上常設ボタン群 ──────────────────────────── */
+.vn-topbar{
+  position:absolute;
+  top:12px;right:12px;
   z-index:95;
-  font-size:12px;
-  color:rgba(240,232,214,.6);
-  background:rgba(20,14,8,.62);
-  border:1px solid rgba(217,178,90,.28);
-  border-radius:8px;
-  padding:5px 10px;
-  cursor:pointer;
-  transition:.12s;
+  display:flex;gap:6px;
   pointer-events:auto;
 }
-.vn-log-btn:hover{color:var(--gold2);border-color:var(--gold2);}
+.vn-tbtn{
+  font-size:12px;
+  color:rgba(240,232,214,.7);
+  background:rgba(12,8,4,.72);
+  border:1px solid rgba(217,178,90,.32);
+  border-radius:8px;
+  padding:6px 11px;
+  cursor:pointer;
+  transition:.12s;
+  font-family:inherit;
+  white-space:nowrap;
+}
+.vn-tbtn:hover{color:var(--gold2);border-color:var(--gold2);background:rgba(20,14,6,.88);}
+.vn-close-btn{ color:rgba(240,232,214,.5); }
 
-/* ── ログパネル ──────────────────────────── */
+/* ── 初回トースト ───────────────────────────────── */
+.vn-toast{
+  position:absolute;
+  bottom:160px;left:50%;
+  transform:translateX(-50%);
+  z-index:97;
+  background:rgba(10,8,4,.88);
+  border:1px solid rgba(217,178,90,.4);
+  border-radius:20px;
+  padding:8px 20px;
+  font-size:12px;
+  color:rgba(240,232,214,.85);
+  white-space:nowrap;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .4s;
+  font-family:var(--mincho);
+}
+.vn-toast.show{opacity:1;}
+
+/* ── ログパネル ─────────────────────────────────── */
 .vn-log{
   position:absolute;inset:0;
   z-index:96;
-  background:rgba(8,5,2,.92);
+  background:rgba(8,5,2,.94);
   display:none;flex-direction:column;
   pointer-events:auto;
 }
@@ -1319,17 +1390,55 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
   margin-right:8px;font-size:13px;
 }
 
-/* ── モバイル縦優先: 最小高を確保 ────────── */
-@media (max-height:500px){
-  .vn-dlg{padding:0 8px 8px;}
-  .vn-portrait{width:52px;height:52px;flex:0 0 52px;}
-  .vn-port-img{width:52px;height:52px;}
-  .vn-text{font-size:13px;}
+/* ── context別フォント・色 ───────────────────────
+   reader: 明朝/読みやすい色調。battle: DotGothic/ゲームUI調 */
+
+/* readerコンテキスト: 本文明朝・落ち着いた色 */
+#vn-ov.vn-ctx-reader .vn-narrator{
+  font-family:var(--mincho);
+  font-size:18px;
+  line-height:1.9;
+  color:#cfc8bb;
+}
+#vn-ov.vn-ctx-reader .vn-text{
+  font-family:var(--mincho);
+  font-size:18px;
+  line-height:1.9;
+  color:#ffffff;
 }
 
-/* ── リーダー: VN表示モード追記 ─────────────
-   reader.js が vn-mode クラスを #readerov に追加した時
-   既存ページビューを隠す                           */
+/* battleコンテキスト: DotGothic/ゲームUI系 */
+#vn-ov.vn-ctx-battle .vn-narrator,
+#vn-ov.vn-ctx-battle .vn-text{
+  font-family:'DotGothic16',var(--mincho),monospace;
+  font-size:15px;
+  line-height:1.82;
+  color:#f0e8d6;
+}
+
+/* ── モバイル縦最優先調整 ──────────────────────── */
+@media (max-width:420px){
+  .vn-portrait-wrap{ width:96px;height:96px;bottom:130px; }
+  .vn-port-img{ width:96px;height:96px; }
+  .vn-speaker-tab{ left:118px;font-size:13px; }
+  .vn-text{ font-size:15px; }
+  .vn-narrator{ font-size:15px; }
+}
+@media (max-height:500px){
+  .vn-portrait-wrap{ width:72px;height:72px;bottom:110px; }
+  .vn-port-img{ width:72px;height:72px; }
+  .vn-text{ font-size:13px; }
+}
+
+/* ── リーダーの⌂ホームボタン(ctrl バー追加分) ─── */
+#rdr-btn-home{
+  color:rgba(240,232,214,.6);
+}
+#rdr-btn-home:hover{
+  color:var(--gold2);
+}
+
+/* ── リーダー: VN表示モード追記(後方互換) ──────── */
 #readerov.vn-mode #rdr-body,
 #readerov.vn-mode #rdr-ctrl,
 #readerov.vn-mode #rdr-header{

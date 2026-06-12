@@ -722,6 +722,59 @@ window.Sprites = (function(){
     return c;
   }
 
+  // ── 汎用フォールバック顔(assets/face_generic/g01〜g32.png) ─────────
+  // GENERALS名前一致→role→キーワード→hashで池内決定論選択。
+  // 一致しない場合は null(肖像なし)。
+  const GENERIC_IMGS = {};
+  let GENERIC_LIST = null;
+  try {
+    fetch('assets/face_generic/index.json').then(r => r.json()).then(a => {
+      GENERIC_LIST = a; // ['g01','g02',...]
+      a.forEach(name => {
+        GENERIC_IMGS[name] = null;
+        const im = new Image();
+        im.onload = () => { GENERIC_IMGS[name] = im; };
+        im.onerror = () => { GENERIC_IMGS[name] = false; };
+        im.src = 'assets/face_generic/' + name + '.png';
+      });
+    }).catch(() => { GENERIC_LIST = []; });
+  } catch(e) { GENERIC_LIST = []; }
+
+  // roleと武将名から汎用顔IDを決定論的に選ぶ
+  function _genericPool(name, role) {
+    if (!GENERIC_LIST || GENERIC_LIST.length === 0) return null;
+    // (a) window.GENERALS に名前一致 → role で池を決める
+    const g = (window.GENERALS || []).find(x => x.name === name);
+    const r = (g && g.role) || role || '';
+    let pool = null;
+    if (/武将|異民族の武人|武人|武/.test(r)) pool = range(1, 16);
+    else if (/軍師|参謀|軍略|文官|策士/.test(r)) pool = range(17, 24);
+    else if (/婦人|女性/.test(r)) pool = range(25, 27);
+    else if (/宦官/.test(r)) pool = range(28, 29);
+    else if (/異民族の文民|文民/.test(r)) pool = range(30, 32);
+    // (b) 一致しない汎用話者はキーワード
+    if (!pool) {
+      if (/兵士|衛兵|門番/.test(name)) pool = [1, 5, 15];
+      else if (/老人|長老/.test(name)) pool = [4];
+      else if (/役人|書記/.test(name)) pool = [17, 19];
+      else if (/商人/.test(name)) pool = [32];
+      else if (/女性|侍女/.test(name)) pool = [26];
+    }
+    if (!pool) return null; // 名前プレートのみ
+    const h = hash(name);
+    const id = pool[h % pool.length];
+    const key = 'g' + String(id).padStart(2, '0');
+    if (!GENERIC_LIST.includes(key)) return null;
+    const v = GENERIC_IMGS[key];
+    return (v && v instanceof HTMLImageElement) ? v : null;
+  }
+  function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
+
+  // 外部から呼ぶ汎用顔API
+  function faceGeneric(name, role) {
+    return _genericPool(name, role);
+  }
+
   // AI生成の背景アート(assets/bg/*.png)。読み込み完了後はこちらを床に使う
   const BG_IMGS={};
   function biomeImage(bm){
@@ -861,7 +914,7 @@ window.Sprites = (function(){
   return {
     general, lordSprite, hero, enemy, bossSprite, minionSprite, jar,
     proj, projType, weaponTip, floorTile,
-    face,
+    face, faceGeneric,
     unitImg, mobImg, mobTinted, shadowEllipse,
     classOf, hash,
     warFlag, fxImg

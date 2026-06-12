@@ -80,6 +80,7 @@
         <button id="rdr-btn-prev"  aria-label="前へ">◀<span>前へ</span></button>
         <button id="rdr-btn-next"  aria-label="次へ"><span>次へ</span>▶</button>
         <button id="rdr-btn-log"   aria-label="ログ">📜<span>ログ</span></button>
+        <button id="rdr-btn-home"  aria-label="タイトルへ">⌂<span>ホーム</span></button>
       </div>
       <div id="rdr-log">
         <div id="rdr-log-header">
@@ -101,6 +102,18 @@
     document.getElementById('rdr-btn-prev').addEventListener('click', prevPage);
     document.getElementById('rdr-btn-next').addEventListener('click', nextPage);
     document.getElementById('rdr-btn-log').addEventListener('click', openLog);
+    document.getElementById('rdr-btn-home').addEventListener('click', function(){
+      close();
+      setTimeout(function(){
+        if(window.UI && typeof window.UI.showScreen === 'function'){
+          window.UI.showScreen('s-title');
+        } else {
+          document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+          const t = document.getElementById('s-title');
+          if(t) t.classList.add('show');
+        }
+      }, 120);
+    });
 
     // ログオーバーレイ
     document.getElementById('rdr-log-close').addEventListener('click', closeLog);
@@ -281,22 +294,28 @@
   // ── VNモード: data.script配列でVN.playを使う ─────────
   function openVnMode(no, data){
     // しおり: 行番号保存(VNモード専用)
-    var VN_POS_KEY = 'engi-reader-vn-pos';
+    const VN_POS_KEY = 'engi-reader-vn-pos';
     function saveVnPos(n,i){ try{ var o=JSON.parse(localStorage.getItem(VN_POS_KEY)||'{}'); o[n]=i; localStorage.setItem(VN_POS_KEY,JSON.stringify(o)); }catch(e){} }
 
-    var script = data.script;
-    var onVnEnd = function(){
+    const script = data.script;
+    // しおりを先に保存(⌂で途中離脱した場合も記録が残る)
+    saveVnPos(no, 0);
+
+    const onVnEnd = function(){
       markDone(no);
       refreshReadListBadge(no);
     };
-    window.VN.play(script, {}, onVnEnd);
-    // 最終行をしおりとして記録(読み始めを保存する用途)
+    // context='reader' を渡すことで⌂/✕ボタンを有効化
+    window.VN.play(script, { context: 'reader' }, onVnEnd);
+    // 読了時に末尾行をしおりとして記録
     saveVnPos(no, script.length - 1);
     if(window.ACH) window.ACH.event('readerOpen',{no});
   }
 
   // ── 開く ─────────────────────────────────────────
   async function open(no){
+    // VNモード判定を fetch 後に行うが、
+    // #readerov はページUIなのでVNモード中は show しない
     buildOverlay();
     curNo = no;
     pages = [];
@@ -315,6 +334,7 @@
     }
 
     // ── script配列があればVNモード優先 ──────────────────
+    // #readerov は show させない(一瞬のフラッシュを防ぐ)
     if(Array.isArray(data.script) && data.script.length > 0 && window.VN){
       openVnMode(no, data);
       return;
@@ -338,7 +358,7 @@
     const titleEl = document.getElementById('rdr-title');
     if(titleEl) titleEl.textContent = data.title || ('第' + no + '回');
 
-    // 表示
+    // 表示(通常モードの時だけ #readerov を show)
     closeLog();
     overlay.classList.add('show');
     if(window.ACH) window.ACH.event('readerOpen',{no});

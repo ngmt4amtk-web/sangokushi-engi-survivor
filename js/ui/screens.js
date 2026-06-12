@@ -131,6 +131,10 @@ function uiToast(msg){
 
 // ── 武器SVGアイコン要素 ─────────────────────
 // assets/fx/icon_<weaponKey>.png があれば img で差し替え(フォールバック: SVG維持)
+function wiconHTML(key){
+  const fx=window.Sprites&&window.Sprites.fxImg&&window.Sprites.fxImg('icon_'+key+'.png');
+  return fx?('<img src="assets/fx/icon_'+key+'.png" style="height:20px;vertical-align:-4px;margin-right:5px;image-rendering:pixelated">'):'';
+}
 function wiconEl(weaponKey,cls){
   const d=el('div','wsvg'+(cls?' '+cls:''));
   const fxSrc=window.Sprites&&window.Sprites.fxImg&&window.Sprites.fxImg('icon_'+weaponKey+'.png');
@@ -656,12 +660,12 @@ function renderChoiceCards(choices){
     if(c.type==='wnew'){
       ico=faceEl(c.gen,52,'ci');
       inner=`<div class="crow"><span class="tag txt-r${c.gen.rarity}">${RAR[c.gen.rarity].name}新武将</span><span class="cnm">${c.gen.name}</span></div>
-        <div class="ct">${c.gen.weaponName}（${window.WTYPE[c.gen.weapon].jp}）</div>
+        <div class="ct">${wiconHTML(c.gen.weapon)}${c.gen.weaponName}（${window.WTYPE[c.gen.weapon].jp}）</div>
         <div class="cd">${c.gen.skillDesc}</div>${evoHint(c.gen)}`;
     } else if(c.type==='wup'){
       ico=faceEl(c.gen,52,'ci');
       inner=`<div class="crow"><span class="tag" style="color:var(--gold2)">強化 Lv${c.w.level+1}</span><span class="cnm">${c.gen.name}</span></div>
-        <div class="ct">${c.gen.weaponName}</div>
+        <div class="ct">${wiconHTML(c.gen.weapon)}${c.gen.weaponName}</div>
         <div class="cd">${window.WTYPE[c.gen.weapon].note||c.gen.skillDesc}</div>${evoHint(c.gen)}`;
     } else {
       ico=el('div','ci ci-emoji',c.p.icon);
