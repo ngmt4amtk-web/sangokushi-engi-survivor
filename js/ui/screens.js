@@ -868,6 +868,7 @@ function renderSettings(){
     <label class="set-check"><input id="set-dmg" type="checkbox" ${val('damageNumbers',true)?'checked':''}> ダメージ数字</label>
     <label class="set-check"><input id="set-auto" type="checkbox" ${val('autoUlt',false)?'checked':''}> 必殺オート発動</label>
     <label class="set-check"><input id="set-light" type="checkbox" ${val('lightMode',false)?'checked':''}> 常時軽量</label>
+    <label class="set-check"><input id="set-envi" type="checkbox" ${val('enviFx',true)?'checked':''}> 環境演出(粒子・照明)</label>
     <div class="save-tools">
       <div class="set-label">セーブ書出/読込</div>
       <textarea id="save-json" spellcheck="false" placeholder="書出ボタンでJSONを表示。読込時はここへ貼付。"></textarea>
@@ -886,6 +887,7 @@ function renderSettings(){
   $('#set-dmg').onchange=e=>put('damageNumbers',e.target.checked);
   $('#set-auto').onchange=e=>put('autoUlt',e.target.checked);
   $('#set-light').onchange=e=>put('lightMode',e.target.checked);
+  $('#set-envi').onchange=e=>put('enviFx',e.target.checked);
   $('#save-export').onclick=async()=>{
     const txt=window.Save.exportJson();
     $('#save-json').value=txt;

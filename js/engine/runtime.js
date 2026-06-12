@@ -86,6 +86,7 @@ function startRun(opts){
     grid:new Map(), GRID:72,
     buffs:{}, uid:1,
     flash:0, shake:0, timeScale:1, doomFx:null,
+    enviParts:[], enviLightCanvas:null, enviLightDirty:true,
     stats:{hits:0,ultNames:[],namedSpawn:{},namedKillSec:{},bossSpawnT:null,bossKillSec:null,bossName:null},
     perf:{low:!!(save&&save.opts&&save.opts.lightMode),under:0,toast:false},
   };
@@ -933,6 +934,8 @@ function update(dt){
       pushText(p.x,p.y-40,'魏兵 招集','#90caf9',1.1,16);
     }
   }
+  // 環境粒子更新
+  if(opt('enviFx',true)) updateEnviParts(realDt);
   // テキスト/粒子
   for(const e of R.enemies){ if(e._dmgText&&e._dmgText.sum>0){ e._dmgText.t-=realDt; if(e._dmgText.t<=0)flushDamageText(e); } }
   for(const t of R.texts){t.y+=t.vy*dt;t.life-=dt;} R.texts=R.texts.filter(t=>t.life>0);
@@ -1279,6 +1282,111 @@ function updateGems(dt){
   R.gems=R.gems.filter(g=>!g.taken);
 }
 
+// ── 環境粒子 ───────────────────────────────
+function updateEnviParts(dt){
+  if(!window.BIOMES)return;
+  const biome=(window.BIOMES.byNo[R.stage.no])||window.BIOMES.def||'plain';
+  const cfg=window.BIOMES.ENVI_CFG&&window.BIOMES.ENVI_CFG[biome];
+  if(!cfg)return;
+  const isDoom=R.scene&&R.scene.kind==='doom';
+  const low=lightMode();
+  const cap=low?cfg.capLow:cfg.cap;
+  // パン速度オフセット(パララックス): プレイヤー速度の0.6倍でスクロール
+  const px_prev=R._envi_px||R.player.x, py_prev=R._envi_py||R.player.y;
+  const pdx=(R.player.x-px_prev)*0.6, pdy=(R.player.y-py_prev)*0.6;
+  R._envi_px=R.player.x; R._envi_py=R.player.y;
+  // 既存粒子更新
+  const parts=R.enviParts;
+  for(const p of parts){
+    p.x+=p.vx*dt+pdx; p.y+=p.vy*dt+pdy;
+    p.life-=dt;
+    if(p.blink) p._blinkT=(p._blinkT||0)+dt;
+  }
+  // 寿命切れ除去
+  let alive=parts.filter(p=>p.life>0);
+  // 不足分を補充(上限まで)
+  // スポーン頻度: dt×(cap/avgLife) で平均的に上限を維持
+  const avgLife=4.0;
+  const want=Math.round(dt*(cap/avgLife)*1.6);
+  for(let i=0;i<want&&alive.length<cap;i++){
+    const np=cfg.spawn(dt,R.cam,CW,CH,rnd);
+    if(isDoom){ // doom幕は赤系に染める
+      np.col=np.kind==='spark'?'#ff4444':('hsl('+rnd(340,10)+',72%,52%)');
+    }
+    alive.push(np);
+  }
+  R.enviParts=alive;
+}
+
+function drawEnviParts(){
+  const parts=R.enviParts; if(!parts||!parts.length)return;
+  const isDoom=R.scene&&R.scene.kind==='doom';
+  for(const p of parts){
+    const frac=p.life/p.maxLife;
+    // フェードイン/アウト
+    const fade=frac<0.15?(frac/0.15):(frac>0.85?((1-frac)/0.15):1);
+    let alpha;
+    if(p.blink){
+      // 波光/火の粉: 明滅
+      const b=0.5+0.5*Math.sin((p._blinkT||0)*10+p.x*0.05);
+      alpha=fade*0.72*b;
+    } else if(p.kind==='snow'){
+      alpha=fade*0.72;
+    } else if(p.kind==='sand'){
+      alpha=fade*0.22; // plain砂塵は極薄
+    } else {
+      alpha=fade*0.48;
+    }
+    if(alpha<=0.01)continue;
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle=isDoom&&p.kind!=='spark'?'hsl('+Math.floor(p.x*0.3%20+340)+',68%,50%)':p.col;
+    if(p.kind==='snow'){
+      ctx.fillRect(p.x-p.r/2,p.y-p.r/2,p.r,p.r);
+    } else if(p.kind==='jungle'){
+      // 葉: 細長い矩形を回転
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.life*0.9);
+      ctx.fillRect(-p.r*0.5,-p.r*1.4,p.r,p.r*2.8);
+      ctx.restore();
+    } else {
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── 照明オーバーレイ ──────────────────────
+// プレイヤー中心を「くり抜く」暗がり: 画面全体に薄暗いベールを敷き、中心付近だけ透明にする
+// キャッシュしたグラデcanvasを使い毎フレームcreateRadialGradientをスキップ
+let _lightCanvas=null, _lightCW=0, _lightCH=0;
+function drawLightOverlay(){
+  if(!opt('enviFx',true))return;
+  // リサイズ時は再生成
+  if(!_lightCanvas||_lightCW!==CW||_lightCH!==CH){
+    _lightCanvas=document.createElement('canvas');
+    _lightCanvas.width=CW; _lightCanvas.height=CH;
+    _lightCW=CW; _lightCH=CH;
+  }
+  const lc=_lightCanvas;
+  const lx=lc.getContext('2d');
+  // 照明canvasはプレイヤーの画面座標が変わった時だけ更新
+  // (シェイク/ズームは毎フレーム変動するが、照明は中心固定で十分)
+  lx.clearRect(0,0,CW,CH);
+  // 全体を薄暗く塗りつぶし
+  lx.fillStyle='rgba(0,0,0,0.18)';
+  lx.fillRect(0,0,CW,CH);
+  // プレイヤー周辺をradialGradientでくり抜く(destination-out)
+  const cx=CW/2, cy=CH/2;
+  const inner=Math.min(CW,CH)*0.32, outer=Math.min(CW,CH)*0.82;
+  const grd=lx.createRadialGradient(cx,cy,inner,cx,cy,outer);
+  grd.addColorStop(0,'rgba(0,0,0,0.18)'); // 中心: 暗がりと同濃度=くり抜き後に透明
+  grd.addColorStop(1,'rgba(0,0,0,0)');    // 端: くり抜かない
+  lx.globalCompositeOperation='destination-out';
+  lx.fillStyle=grd;
+  lx.fillRect(0,0,CW,CH);
+  lx.globalCompositeOperation='source-over';
+  ctx.drawImage(lc,0,0);
+}
+
 // ── 描画 ───────────────────────────────────
 function render(){
   if(!R)return;
@@ -1289,6 +1397,8 @@ function render(){
   ctx.save(); ctx.translate(CW/2+sx, CH/2+sy); if(zoom!==1)ctx.scale(zoom,zoom); ctx.translate(-R.cam.x, -R.cam.y);
   const _biome=(window.BIOMES&&window.BIOMES.byNo[R.stage.no])||( window.BIOMES&&window.BIOMES.def)||'plain';
   drawGrid(bg,_biome);
+  // 環境粒子レイヤ(床より上・敵より下)
+  if(opt('enviFx',true)) drawEnviParts();
   drawDoomWorld();
   // 君主シグネチャの場(視認用)
   if(R.lord.sig&&R.lord.sig.slowFieldR){ const r=R.lord.sig.slowFieldR; ctx.beginPath();ctx.arc(R.player.x,R.player.y,r,0,TAU);
@@ -1337,6 +1447,8 @@ function render(){
   // テキスト
   for(const t of R.texts){ ctx.globalAlpha=Math.max(0,t.life*1.4); ctx.font='bold '+t.size+'px "DotGothic16", ui-monospace,monospace'; ctx.textAlign='center'; ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.7)'; ctx.strokeText(t.s,t.x,t.y); ctx.fillStyle=t.col; ctx.fillText(t.s,t.x,t.y); } ctx.globalAlpha=1; ctx.textAlign='left';
   ctx.restore();
+  // 照明オーバーレイ(画面座標系で描画: プレイヤー中心の柔らかい明かり)
+  drawLightOverlay();
   drawDoomOverlay();
   if(R.flash>0){ ctx.fillStyle='rgba(255,80,80,'+Math.min(0.4,R.flash*0.4)+')'; ctx.fillRect(0,0,CW,CH); }
 }

@@ -40,5 +40,63 @@ window.BIOMES = (function(){
   // city
   [3,4,9,13,20,21,23,29,63,79,80,105,107,114,119,120].forEach(n=>{ byNo[n]='city'; });
 
-  return { byNo, def: 'plain' };
+  // ── 環境粒子設定 ──────────────────────────────────────────────────
+  // cap: 通常時の最大粒子数 / capLow: 軽量化時(半減)
+  // spawn: 1フレームに生成する割合(0〜1, dt×rateで補正)
+  // 各粒子オブジェクト: { x, y, vx, vy, r, alpha, life, maxLife, col, blink?, kind }
+  const ENVI_CFG = {
+    snow: {
+      cap: 36, capLow: 18,
+      spawn(dt, cam, CW, CH, rnd) {
+        const x = cam.x + rnd(-CW * 0.55, CW * 0.55);
+        const y = cam.y - CH * 0.55;
+        const sz = Math.random() < 0.38 ? 2.5 : 1.5;
+        return { x, y, vx: rnd(14, 28), vy: rnd(22, 44), r: sz,
+          life: rnd(3.5, 6.5), maxLife: 6.5, col: '#ffffff', blink: false, kind: 'snow' };
+      },
+    },
+    water: {
+      cap: 28, capLow: 14,
+      spawn(dt, cam, CW, CH, rnd) {
+        const x = cam.x + rnd(-CW * 0.52, CW * 0.52);
+        const y = cam.y + rnd(-CH * 0.50, CH * 0.50);
+        return { x, y, vx: rnd(8, 18), vy: rnd(-4, 4), r: 1.5,
+          life: rnd(0.4, 1.0), maxLife: 1.0, col: '#e8f4ff', blink: true, kind: 'water' };
+      },
+    },
+    jungle: {
+      cap: 30, capLow: 15,
+      spawn(dt, cam, CW, CH, rnd) {
+        const x = cam.x + rnd(-CW * 0.52, CW * 0.52);
+        const y = cam.y + rnd(-CH * 0.52, CH * 0.52);
+        return { x, y, vx: rnd(-12, 12), vy: rnd(-14, 14), r: rnd(2, 3.5),
+          life: rnd(2.8, 5.5), maxLife: 5.5, col: Math.random() < 0.5 ? '#7ec850' : '#b2e480', blink: false, kind: 'jungle' };
+      },
+    },
+    city: {
+      cap: 24, capLow: 12,
+      spawn(dt, cam, CW, CH, rnd) {
+        const isSpark = Math.random() < 0.06;
+        const x = cam.x + rnd(-CW * 0.52, CW * 0.52);
+        const y = cam.y + rnd(-CH * 0.52, CH * 0.52);
+        if (isSpark) {
+          return { x, y, vx: rnd(-30, 30), vy: rnd(-60, -20), r: 1.8,
+            life: rnd(0.6, 1.1), maxLife: 1.1, col: '#ffaa44', blink: true, kind: 'spark' };
+        }
+        return { x, y, vx: rnd(5, 16), vy: rnd(-6, 6), r: 1.2,
+          life: rnd(1.8, 3.8), maxLife: 3.8, col: '#d4c8b0', blink: false, kind: 'dust' };
+      },
+    },
+    plain: {
+      cap: 20, capLow: 10,
+      spawn(dt, cam, CW, CH, rnd) {
+        const x = cam.x + rnd(-CW * 0.55, CW * 0.55);
+        const y = cam.y + rnd(-CH * 0.52, CH * 0.52);
+        return { x, y, vx: rnd(18, 34), vy: rnd(-4, 4), r: 1.2,
+          life: rnd(1.5, 3.5), maxLife: 3.5, col: '#c8b870', blink: false, kind: 'sand' };
+      },
+    },
+  };
+
+  return { byNo, def: 'plain', ENVI_CFG };
 })();
