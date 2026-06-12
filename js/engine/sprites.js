@@ -521,8 +521,11 @@ window.Sprites = (function(){
   // AI生成の武将肖像(assets/face/<武将名>.png)。遅延ロード。
   // biomeImage と同じパターン: null=ロード中/未試行, false=エラー, HTMLImageElement=完了
   const FACE_IMGS={};
+  // 存在する肖像の一覧(assets/face/index.json)を先に読み、無いファイルへの404プローブを出さない
+  let FACE_LIST=null;
+  try{ fetch('assets/face/index.json').then(r=>r.json()).then(a=>{ FACE_LIST=new Set(a); }).catch(()=>{ FACE_LIST=new Set(); }); }catch(e){ FACE_LIST=new Set(); }
   function face(g){
-    if(!g||!g.name) return null;
+    if(!g||!g.name||!FACE_LIST||!FACE_LIST.has(g.name)) return null;
     const name=g.name;
     if(!(name in FACE_IMGS)){
       FACE_IMGS[name]=null;
