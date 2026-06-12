@@ -270,10 +270,18 @@ function playUltCutin(gen,def,full){
   title.textContent=def.name||'奥義';
   quote.textContent=def.quote||'';
   if(full){
-    const bust=document.createElement('canvas'); bust.width=28; bust.height=28; bust.className='uc-bust';
-    const bx=bust.getContext('2d'); bx.imageSmoothingEnabled=false;
-    try{ bx.drawImage(window.Sprites.general(gen),0,0); }catch(e){}
-    ov.insertBefore(bust,ov.firstChild);
+    // 肖像画像があれば img で表示、なければ従来のドット絵バスト canvas にフォールバック
+    const faceImg=window.Sprites.face&&window.Sprites.face(gen);
+    if(faceImg){
+      const im=document.createElement('img');
+      im.src=faceImg.src; im.className='uc-bust uc-bust--photo'; im.alt=gen.name||'';
+      ov.insertBefore(im,ov.firstChild);
+    } else {
+      const bust=document.createElement('canvas'); bust.width=28; bust.height=28; bust.className='uc-bust';
+      const bx=bust.getContext('2d'); bx.imageSmoothingEnabled=false;
+      try{ bx.drawImage(window.Sprites.general(gen),0,0); }catch(e){}
+      ov.insertBefore(bust,ov.firstChild);
+    }
   }
   window.SFX&&SFX.play('evolve');
   clearTimeout(ov._tm);

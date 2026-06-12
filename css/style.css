@@ -1063,3 +1063,74 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 }
 /* ログ背景は完全不透明に(下層ページの透け防止) */
 #rdr-log{background:#0a0807;}
+
+/* ── AI生成武将肖像レイヤ ─────────────────────────────────────────── */
+/* 縮小表示でも線が潰れないよう image-rendering は pixelated にする。
+   AI生成の写実寄り肖像なら smooth のほうが綺麗だが、
+   生成時に「ドット絵」スタイルを指定することが多いためデフォルトは pixelated。
+   写実寄り画像を使う場合は .face-smooth クラスを追加して切り替える。 */
+
+/* 英雄図鑑モーダル: 96px金縁 */
+.dl-face-img{
+  width:100%; height:100%;
+  object-fit:cover;
+  image-rendering:pixelated;
+  display:block;
+}
+
+/* 英雄録カード: 初出会い(72px相当) */
+.hr-face-img{
+  width:72px; height:72px;
+  object-fit:cover;
+  image-rendering:pixelated;
+  border-radius:6px;
+  display:block;
+}
+/* 列伝進展(44px相当) */
+.hr-face-img--sm{
+  width:44px; height:44px;
+}
+
+/* 出陣準備: 名前の左の丸枠肖像(48px) */
+.prep-hero-nameline{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  justify-content:center;
+}
+.prep-face-circle{
+  width:48px; height:48px;
+  border-radius:50%;
+  overflow:hidden;
+  border:2px solid var(--gold);
+  background:#0c0a10;
+  flex:0 0 48px;
+  /* 画像なし=空要素。表示コスト0、レイアウト崩れなし */
+}
+.prep-face-circle:empty{
+  display:none; /* 肖像なし時は非表示。名前のみ表示で従来と同一 */
+}
+.prep-face-img{
+  width:100%; height:100%;
+  object-fit:cover;
+  image-rendering:pixelated;
+  display:block;
+}
+
+/* カットイン: 肖像画像版バスト */
+.uc-bust--photo{
+  position:absolute;
+  left:50%; top:50%;
+  width:168px; height:168px;
+  /* pixelated: AI生成ドット絵寄り画像を想定。写実寄りなら auto に変更可 */
+  image-rendering:pixelated;
+  object-fit:cover;
+  transform:translate(-118px,-96px) scale(1);
+  filter:drop-shadow(0 12px 0 rgba(0,0,0,.55));
+  border-radius:8px;
+}
+
+/* 写実寄り肖像を使う場合の上書きクラス */
+.face-smooth{
+  image-rendering:auto !important;
+}

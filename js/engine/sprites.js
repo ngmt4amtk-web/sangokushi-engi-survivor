@@ -518,6 +518,24 @@ window.Sprites = (function(){
   }
   function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');}
   function mix(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+  // AI生成の武将肖像(assets/face/<武将名>.png)。遅延ロード。
+  // biomeImage と同じパターン: null=ロード中/未試行, false=エラー, HTMLImageElement=完了
+  const FACE_IMGS={};
+  function face(g){
+    if(!g||!g.name) return null;
+    const name=g.name;
+    if(!(name in FACE_IMGS)){
+      FACE_IMGS[name]=null;
+      const im=new Image();
+      im.onload=()=>{ FACE_IMGS[name]=im; };
+      im.onerror=()=>{ FACE_IMGS[name]=false; };
+      im.src='assets/face/'+name+'.png';
+    }
+    // null=ロード中, false=失敗 → どちらもnullを返してフォールバックへ
+    const v=FACE_IMGS[name];
+    return (v&&v instanceof HTMLImageElement)?v:null;
+  }
+
   // AI生成の背景アート(assets/bg/*.png)。読み込み完了後はこちらを床に使う
   const BG_IMGS={};
   function biomeImage(bm){
@@ -657,6 +675,7 @@ window.Sprites = (function(){
   return {
     general, lordSprite, hero, enemy, bossSprite, minionSprite, jar,
     proj, projType, weaponTip, floorTile,
+    face,
     classOf, hash
   };
 })();

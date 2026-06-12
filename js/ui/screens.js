@@ -283,7 +283,10 @@ function renderPrep(){
       <div class="prep-sprite-wrap">
         <canvas class="prep-sprite" data-gid="${g.id}" width="1" height="1"></canvas>
       </div>
-      <div class="prep-hero-name txt-r${g.rarity}">${g.name}</div>
+      <div class="prep-hero-nameline">
+        <div class="prep-face-circle" data-fid="${g.id}"></div>
+        <div class="prep-hero-name txt-r${g.rarity}">${g.name}</div>
+      </div>
       <div class="prep-hero-rar">${'★'.repeat(g.rarity)}</div>
       <div class="prep-hero-ult">${esc(ultName)}</div>
     </div>`;
@@ -323,6 +326,19 @@ function renderPrep(){
     const tid=setInterval(()=>{ frame^=1; draw(); },300);
     animHandles.push(tid);
   });
+  // 丸枠肖像: 肖像があれば img(48px)を挿入、なければ非表示のまま
+  c.querySelectorAll('.prep-face-circle').forEach(circle=>{
+    const gid=+circle.dataset.fid;
+    const g=genById(gid); if(!g)return;
+    const faceImg=window.Sprites.face(g);
+    if(faceImg){
+      const im=document.createElement('img');
+      im.src=faceImg.src; im.className='prep-face-img'; im.alt=g.name;
+      circle.appendChild(im);
+    }
+    // 画像なし=circle要素が空のままなのでレイアウトは崩れない
+  });
+
   // 画面離脱時にアニメ停止(show()でscreen.show外れる前のcleanup)
   const origShow=c._cleanupAnim;
   if(origShow) origShow();
@@ -762,9 +778,18 @@ function renderHeroRecord(res){
       `;
       card.onclick = ()=>openDetailLv(g, lv);
       newGrid.appendChild(card);
-      // 顔描画
+      // 顔描画: 肖像画像があれば img、なければドット絵バスト
       const face = card.querySelector('.hr-new-face');
-      if(face) face.appendChild(faceEl(g, 72));
+      if(face){
+        const faceImg=window.Sprites.face(g);
+        if(faceImg){
+          const im=document.createElement('img');
+          im.src=faceImg.src; im.className='hr-face-img'; im.alt=g.name;
+          face.appendChild(im);
+        } else {
+          face.appendChild(faceEl(g, 72));
+        }
+      }
     });
   }
 
@@ -785,7 +810,16 @@ function renderHeroRecord(res){
       card.onclick = ()=>openDetailLv(g, lv);
       upGrid.appendChild(card);
       const face = card.querySelector('.hr-up-face');
-      if(face) face.appendChild(faceEl(g, 44));
+      if(face){
+        const faceImg=window.Sprites.face(g);
+        if(faceImg){
+          const im=document.createElement('img');
+          im.src=faceImg.src; im.className='hr-face-img hr-face-img--sm'; im.alt=g.name;
+          face.appendChild(im);
+        } else {
+          face.appendChild(faceEl(g, 44));
+        }
+      }
     });
   }
 
@@ -1175,7 +1209,18 @@ function openDetailLv(g, lv){
   $('#modalbox').innerHTML = html;
   $('#modal').classList.add('show');
   $('#modalbox').scrollTop = 0;
-  const _df=$('#modalbox .dl-face'); if(_df) _df.appendChild(faceEl(g,84));
+  // 肖像: AI生成画像があれば img(96px・金縁)、なければ従来のドット絵バスト
+  const _df=$('#modalbox .dl-face');
+  if(_df){
+    const faceImg=window.Sprites.face(g);
+    if(faceImg){
+      const im=document.createElement('img');
+      im.src=faceImg.src; im.className='dl-face-img'; im.alt=g.name;
+      _df.appendChild(im);
+    } else {
+      _df.appendChild(faceEl(g,84));
+    }
+  }
   $('#dl-close').onclick=()=>$('#modal').classList.remove('show');
 }
 
