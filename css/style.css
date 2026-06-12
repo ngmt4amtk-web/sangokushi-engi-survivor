@@ -893,3 +893,7 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 /* タイトル: 「演義を読む」を出陣と同格の中央大ボタンに */
 .tl-read{background:linear-gradient(180deg,#3a2f1d,#241c10);border:1px solid var(--gold2,#c9a227);color:var(--gold2,#e8b04a);margin-top:10px;font-size:20px}
 .tl-menu{grid-template-columns:repeat(3,1fr)}
+
+/* リーダー本文を戦闘前後ナレーションと同じく画面中央に */
+#rdr-body{justify-content:center;}
+#rdr-page{flex:0 1 auto;display:flex;flex-direction:column;justify-content:center;}
