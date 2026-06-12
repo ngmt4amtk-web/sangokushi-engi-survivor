@@ -45,8 +45,8 @@
       <div id="vn-bg-tap-right" class="vn-tap-zone vn-tap-right"></div>
       <div id="vn-narrator" class="vn-narrator"></div>
       <div id="vn-heading"  class="vn-heading"></div>
-      <div id="vn-portrait-wrap" class="vn-portrait-wrap"></div>
       <div id="vn-dlg" class="vn-dlg">
+        <div id="vn-portrait-wrap" class="vn-portrait-wrap"></div>
         <div id="vn-speaker-tab" class="vn-speaker-tab"></div>
         <div id="vn-dlg-inner">
           <div id="vn-text" class="vn-text"></div>
@@ -107,13 +107,12 @@
   // ── 肖像取得: face → faceGeneric → null ────────
   function getPortraitImg(name){
     if(!name) return null;
-    // 1) Sprites.face(g): 武将専用AI肖像
-    const g = (window.GENERALS||[]).find(x=>x.name===name);
-    if(g && window.Sprites && window.Sprites.face){
-      const fi = window.Sprites.face(g);
-      if(fi) return fi;
+    // 1) 専用肖像が「存在する」ならsrc直指し(ロード競合で汎用顔に落ちるのを防ぐ)
+    if(window.Sprites && window.Sprites.faceHas && window.Sprites.faceHas(name)){
+      return { src: 'assets/face/'+name+'.png' };
     }
-    // 2) Sprites.faceGeneric(name): 汎用pool
+    // 2) 汎用pool(役職+名前ハッシュ)
+    const g = (window.GENERALS||[]).find(x=>x.name===name);
     if(window.Sprites && window.Sprites.faceGeneric){
       const gi = window.Sprites.faceGeneric(name, g && g.role);
       if(gi) return gi;

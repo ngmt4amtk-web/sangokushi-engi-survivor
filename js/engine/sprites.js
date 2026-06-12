@@ -624,6 +624,7 @@ window.Sprites = (function(){
   // 存在する肖像の一覧(assets/face/index.json)を先に読み、無いファイルへの404プローブを出さない
   let FACE_LIST=null;
   try{ fetch('assets/face/index.json').then(r=>r.json()).then(a=>{ FACE_LIST=new Set(a); }).catch(()=>{ FACE_LIST=new Set(); }); }catch(e){ FACE_LIST=new Set(); }
+  function faceHas(name){ return !!(FACE_LIST&&FACE_LIST.has(name)); }
   function face(g){
     if(!g||!g.name||!FACE_LIST||!FACE_LIST.has(g.name)) return null;
     const name=g.name;
@@ -912,7 +913,7 @@ window.Sprites = (function(){
   }
 
   return {
-    general, lordSprite, hero, enemy, bossSprite, minionSprite, jar,
+    general, lordSprite, hero, faceHas, enemy, bossSprite, minionSprite, jar,
     proj, projType, weaponTip, floorTile,
     face, faceGeneric,
     unitImg, mobImg, mobTinted, shadowEllipse,
