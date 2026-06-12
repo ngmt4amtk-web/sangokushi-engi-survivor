@@ -83,7 +83,7 @@ for (let no = 1; no <= 120; no++) {
       kindCounts[sc.kind]++;
       const [min, max] = ranges[sc.kind];
       if (typeof sc.dur !== 'number' || !Number.isFinite(sc.dur) || sc.dur < min || sc.dur > max) {
-        errors.push(`${label}: ${sc.kind} dur ${sc.dur} outside ${min}-${max}`);
+        if(!sc.noSpawn) errors.push(`${label}: ${sc.kind} dur ${sc.dur} outside ${min}-${max}`); // noSpawn=特殊ボーナス幕は尺自由
       }
       if (sc.kind === 'doom') {
         doomCount++;

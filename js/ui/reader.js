@@ -318,6 +318,7 @@
     // 表示
     closeLog();
     overlay.classList.add('show');
+    if(window.ACH) window.ACH.event('readerOpen',{no});
     renderPage();
   }
 

@@ -36,7 +36,7 @@ h1.logo{font-size:clamp(30px,8vw,58px);text-align:center;margin:6px 0 2px;
 .row{display:flex;gap:10px;}.row>*{flex:1;}
 .back{position:fixed;top:12px;left:12px;z-index:20;width:auto;padding:9px 16px;margin:0;font-size:14px;}
 /* 固定戻るボタンと被らないよう、固定backを持つ画面のtopbarを下げる */
-#s-stage .wrap, #s-codex .wrap, #s-gacha .wrap, #s-barracks .wrap{padding-top:58px;}
+#s-stage .wrap, #s-codex .wrap, #s-gacha .wrap, #s-barracks .wrap, #s-achievements .wrap{padding-top:58px;}
 
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
 .curr{display:flex;gap:14px;align-items:center;font-weight:700;}
@@ -892,7 +892,46 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 
 /* タイトル: 「演義を読む」を出陣と同格の中央大ボタンに */
 .tl-read{background:linear-gradient(180deg,#3a2f1d,#241c10);border:1px solid var(--gold2,#c9a227);color:var(--gold2,#e8b04a);margin-top:10px;font-size:20px}
-.tl-menu{grid-template-columns:repeat(3,1fr)}
+.tl-menu{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+
+/* 便2: 実績・ランク・設定・共有 */
+.exp-rate,.ach-count{font-size:12px;color:var(--gold2);font-weight:800;background:rgba(58,44,16,.55);border:1px solid rgba(217,178,90,.34);border-radius:8px;padding:5px 9px;}
+.rank-badge{display:inline-block;min-width:24px;text-align:center;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:10px;font-weight:900;background:#17110a;color:var(--txt2);}
+.rank-badge.s,.res-rank.s{color:#fff0a8;border-color:#ffe082;box-shadow:0 0 10px rgba(255,224,130,.28);}
+.rank-badge.a,.res-rank.a{color:#b7e6ff;border-color:#81d4fa;}
+.rank-badge.b,.res-rank.b{color:#d8c7a8;border-color:#8b7858;}
+.rank-badge.destiny,.res-rank.destiny{color:#d7b7ff;border-color:#b39ddb;}
+.res-rank{font-family:var(--mincho);font-size:42px;font-weight:900;line-height:1;margin:8px 0 2px;border:2px solid var(--line);border-radius:10px;padding:6px 18px;background:rgba(0,0,0,.22);}
+.share-btn{max-width:340px;margin-top:8px;}
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:12px;}
+.ach-card{min-height:134px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:12px;position:relative;overflow:hidden;}
+.ach-card.on{border-color:rgba(255,224,130,.62);box-shadow:0 0 0 1px rgba(217,178,90,.16),0 5px 14px rgba(0,0,0,.35);}
+.ach-card.off{filter:grayscale(.45);opacity:.66;}
+.ach-seal{width:38px;height:38px;line-height:36px;text-align:center;border-radius:9px;border:2px solid rgba(217,178,90,.45);background:#120b08;color:var(--gold2);font-family:var(--mincho);font-weight:900;font-size:22px;margin-bottom:8px;}
+.ach-card.off .ach-seal{color:#53483a;border-color:#3b3025;background:#090706;}
+.ach-name{font-family:var(--mincho);font-weight:900;font-size:16px;color:var(--txt);}
+.ach-hint{font-size:11.5px;line-height:1.55;color:var(--txt2);margin-top:6px;}
+#achtoast,#uitoast{position:fixed;left:50%;transform:translateX(-50%);z-index:220;pointer-events:none;opacity:0;transition:opacity .22s,top .22s,bottom .22s;}
+#achtoast{top:18px;background:linear-gradient(180deg,#2a1d0e,#120d08);border:2px solid #ffe082;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.55),0 0 18px rgba(255,224,130,.22);padding:10px 18px;min-width:210px;text-align:center;}
+#achtoast.show{opacity:1;top:28px;}
+.ach-pop-k{font-size:11px;color:var(--gold2);font-weight:800;letter-spacing:.12em;}
+.ach-pop-n{font-family:var(--mincho);font-size:18px;font-weight:900;color:#fff4c2;margin-top:2px;}
+#uitoast{bottom:80px;background:rgba(20,16,11,.94);border:1px solid var(--gold);border-radius:18px;color:var(--txt);font-size:13px;font-weight:700;padding:9px 18px;white-space:nowrap;}
+#uitoast.show{opacity:1;bottom:92px;}
+.settings-sheet h3{font-family:var(--mincho);color:var(--gold2);margin-bottom:12px;}
+.set-row{display:grid;grid-template-columns:88px 1fr 34px;gap:8px;align-items:center;margin:10px 0;font-size:13px;color:var(--txt2);}
+.set-row input[type=range]{width:100%;}
+.set-row b{color:var(--gold2);text-align:right;}
+.set-check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--txt);padding:8px 0;border-top:1px solid rgba(255,255,255,.04);}
+.set-check input{width:18px;height:18px;accent-color:#d9b25a;}
+.save-tools{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;}
+.set-label{font-size:12px;color:var(--gold);font-weight:800;margin-bottom:7px;}
+#save-json{width:100%;height:116px;resize:vertical;border:1px solid var(--line);border-radius:9px;background:#0b0806;color:var(--txt);padding:10px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;user-select:text;}
+@media(max-width:520px){
+  .ach-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .ach-card{min-height:146px;padding:10px;}
+  .set-row{grid-template-columns:78px 1fr 30px;}
+}
 
 /* リーダー本文を戦闘前後ナレーションと同じく画面中央に */
 #rdr-body{justify-content:center;}

@@ -11,7 +11,8 @@ for(const f of fs.readdirSync(dir).filter(f=>/^batch_.*\.json$/.test(f)).sort())
     if(out[no]) errs.push(`${f}: 第${no}回が重複`);
     if(!SCENES[no]){ errs.push(`${f}: 第${no}回はscenesに存在しない`); continue; }
     const sc=data[no].scenes||[];
-    if(sc.length!==SCENES[no].length) errs.push(`${f}: 第${no}回 幕数不一致 ${sc.length}≠${SCENES[no].length}`);
+    if(sc.length>SCENES[no].length) errs.push(`${f}: 第${no}回 幕数過多 ${sc.length}>${SCENES[no].length}`);
+    else if(sc.length<SCENES[no].length) warnings_count=0; // 後続幕はscenes.js側のpreを使う(正常)
     sc.forEach((n,i)=>{
       if(!n.pre) errs.push(`第${no}回 幕${i+1}: pre無し`);
       else{

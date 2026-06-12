@@ -80,5 +80,6 @@
     isMuted(){ return muted; },
     toggle(){ muted=!muted; return muted; },
     setVolume(v){ zzfxV=Math.max(0,Math.min(1,v)); },
+    getVolume(){ return zzfxV; },
   };
 })();

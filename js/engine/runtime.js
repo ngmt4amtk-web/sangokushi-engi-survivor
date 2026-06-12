@@ -60,6 +60,8 @@ G.setupCanvas=setupCanvas;
 
 // ── ラン状態 ───────────────────────────────
 let R=null; G.getR=()=>R;
+function opt(k,def){ const o=(R&&R.save&&R.save.opts)||{}; return o[k]===undefined?def:o[k]; }
+function lightMode(){ return !!(R&&R.perf&&R.perf.low); }
 
 // 難易度倍率(敵hp/敵dmg/獲得xp)。爽快重視で既定はふつう。
 // 難易度=敵の硬さ(ehp)・攻撃力(edmg)・遠隔の量(ranged=弓/術者の出現比)で制御。敵の"数"は難易度に依らず常にワラワラ。
@@ -80,10 +82,12 @@ function startRun(opts){
     spawnAcc:0, eliteIdx:0, boss:null, bossWarned:false, jarT:rnd(12,18),
     scene:(opts.scene||null),   // 章のシーン{kind:'sweep|survive|doom', dur, last, deathLine, epitaph}。無ければ従来の単発バトル
     // sweep=従来(durでボス→撃破で勝利) / survive=dur生存で勝利(ボス無し) / doom=dur or HP0で強制死(章は進む)
-    nextBossT: (opts.scene? (opts.scene.kind==='sweep'?opts.scene.dur:1e9) : (stage.endless? 300:stage.dur)),
+    nextBossT: (opts.scene? (opts.scene.bossAt!=null? opts.scene.bossAt : (opts.scene.kind==='sweep'?opts.scene.dur:1e9)) : (stage.endless? 300:stage.dur)),
     grid:new Map(), GRID:72,
     buffs:{}, uid:1,
     flash:0, shake:0, timeScale:1, doomFx:null,
+    stats:{hits:0,ultNames:[],namedSpawn:{},namedKillSec:{},bossSpawnT:null,bossKillSec:null,bossName:null},
+    perf:{low:!!(save&&save.opts&&save.opts.lightMode),under:0,toast:false},
   };
   // 開幕武将: 君主自身の武将を装備(所持扱い)。号令(aura)君主は攻撃手段の開幕武将も追加で持つ
   const equipStart=(name)=>{ const g=window.GENERALS.find(x=>x.name===name); if(g)addWeapon(g); return g; };
@@ -229,7 +233,7 @@ function fuseKizuna(kz,ws){
 // ── エンティティ生成ヘルパ(weapons.jsから使用) ─
 function pushText(x,y,s,col,scl,size){ if(R.texts.length>130)return; R.texts.push({x,y,s,col,scl:scl||1,size:size||16,life:0.9,vy:-34});}
 G.pushText=pushText;
-function pushPart(x,y,col,n,spd){ if(R.parts.length>320)return; for(let i=0;i<n;i++){const a=rnd(TAU),v=rnd(spd*0.3,spd);R.parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:rnd(0.25,0.6),col,r:rnd(1.5,3.2)});}}
+function pushPart(x,y,col,n,spd){ const cap=lightMode()?160:320; if(R.parts.length>cap)return; n=Math.max(1,Math.ceil(n*(lightMode()?0.5:1))); for(let i=0;i<n;i++){const a=rnd(TAU),v=rnd(spd*0.3,spd);R.parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:rnd(0.25,0.6),col,r:rnd(1.5,3.2)});}}
 G.pushPart=pushPart;
 
 // ── 必殺技 ─────────────────────────────────
@@ -246,6 +250,7 @@ function triggerUlt(){
   if(!R||!R.ult||R.over||!R.running||R.paused||R.ult.casting)return false;
   const u=R.ult, def=u.def||((window.ULTS&&window.ULTS.forGeneral)?window.ULTS.forGeneral(u.gen):null);
   if(!def||u.gauge<u.max)return false;
+  if(R.stats&&u.gen&&u.gen.name) R.stats.ultNames.push(u.gen.name);
   u.gauge=0; u.casting=true; u.def=def;
   const full=!u.fullCutin; u.fullCutin=true;
   playUltCutin(u.gen,def,full);
@@ -438,6 +443,7 @@ function ultHealRally(gen,params,hue){
 
 // ── ダメージ適用 ───────────────────────────
 function queueDamageText(e,d,crit){
+  if(!opt('damageNumbers',true))return;
   const q=e._dmgText||(e._dmgText={sum:0,crit:false,t:0.25,x:e.x,y:e.y});
   q.sum+=d; q.crit=!!(q.crit||crit); q.t=0.25; q.x=e.x+rnd(-5,5); q.y=e.y-e.r-4;
 }
@@ -471,6 +477,10 @@ G.applyDamage=applyDamage;
 function killEnemy(e){
   if(e.dead)return; e.dead=true;
   if(e.isBoss){ onBossDead(e); return; }
+  if(e.elite&&e.name&&R.stats){
+    const st=R.stats.namedSpawn[e.name];
+    if(st!=null) R.stats.namedKillSec[e.name]=Math.max(0,R.t-st);
+  }
   R.player.kills++;
   // 軍功
   R.player.goldFrac += (e.gold||1)*window.ECON.killGold*(1+(R.buffs.gold||0))*(1+R.curse*0.6);
@@ -541,6 +551,7 @@ function spawnElite(el){
   const over=Object.assign({xpMul:(el.hpMul||6), goldMul:Math.round((el.hpMul||6)*0.8)}, el);
   const e=spawnAt(pos.x,pos.y,base,{hue:el.hue},hpMul,dmgMul,over);
   e.elite=true; R.enemies.push(e);
+  if(R.stats&&el.name) R.stats.namedSpawn[el.name]=R.t;
   pushText(R.cam.x,R.cam.y-CH*0.32,'精鋭出現: '+el.name,'#ff8a65',1.4,22);
 }
 
@@ -564,11 +575,13 @@ function spawnBoss(){
   };
   mech.forEach(m=>e.mt[m]=rnd(2,4));
   R.boss=e; R.enemies.push(e);
+  if(R.stats){ R.stats.bossSpawnT=R.t; R.stats.bossName=name; }
   R.flash=0.6; R.shake=0.5; window.SFX&&SFX.play('bossIn');
   G.onBossIntro&&G.onBossIntro(name,title,line);
 }
 function onBossDead(e){
   e.dead=true; R.boss=null;
+  if(R.stats&&R.stats.bossSpawnT!=null) R.stats.bossKillSec=Math.max(0,R.t-R.stats.bossSpawnT);
   chargeUlt((window.ULTS&&window.ULTS.KILL&&window.ULTS.KILL.boss)||40);
   pushPart(e.x,e.y,'hsl('+e.hue+',70%,60%)',40,260);
   R.flash=0.7; R.shake=0.6; R.hitstop=Math.max(R.hitstop||0,.13); window.SFX&&SFX.play('bossDead');
@@ -580,6 +593,13 @@ function updateBoss(e,dt){
   const p=R.player;
   const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1;
   if(e.enrageFlash>0)e.enrageFlash-=dt;
+  // 逃走ボス(攻撃しない・プレイヤーから逃げ回る。督郵折檻など)
+  if(e.mech && e.mech.indexOf && e.mech.indexOf('flee')>=0){
+    const sp = d>360? 8 : 52;
+    e.x-=dx/d*sp*dt; e.y-=dy/d*sp*dt;
+    e.vx=-dx/d*sp; e.vy=-dy/d*sp;
+    return;
+  }
   // 予告(溜め)中: 本体は鳴りを潜める。終わったら発動。新規mechは開始しない
   if(e.windup){
     e.windup.t-=dt;
@@ -634,7 +654,13 @@ function finalizeRewards(win){
   R.earned = Math.round(R.earned*(1+((R.meta.upg.gold)||0)*0.08));   // 恒久「軍功UP」
   R.tickets = win? (R.stage.reward.ticket||0):0;
 }
-function buildResult(win){return {win,time:R.t,kills:R.player.kills,level:R.player.level,gold:R.earned,tickets:R.tickets,stage:R.stage,lord:R.lord,weapons:R.weapons.map(w=>({name:w.gen.name,level:w.level,rarity:w.gen.rarity,evo:!!w.evo}))};}
+function buildResult(win){return {win,time:R.t,kills:R.player.kills,level:R.player.level,gold:R.earned,tickets:R.tickets,stage:R.stage,lord:R.lord,
+  hits:(R.stats&&R.stats.hits)||0,
+  ultNames:(R.stats&&R.stats.ultNames)?R.stats.ultNames.slice():[],
+  namedKillSec:Object.assign({},(R.stats&&R.stats.namedKillSec)||{}),
+  bossKillSec:(R.stats&&R.stats.bossKillSec!=null)?R.stats.bossKillSec:null,
+  bossName:(R.stats&&R.stats.bossName)||null,
+  weapons:R.weapons.map(w=>({id:w.gen.id,name:w.gen.name,level:w.level,rarity:w.gen.rarity,evo:!!w.evo}))};}
 G.quitRun=()=>{ if(R){R.running=false;R.over=true;} };
 
 // ── レベルアップ ───────────────────────────
@@ -717,11 +743,21 @@ let raf=0,last=0;
 function loopStart(){ last=performance.now(); raf=requestAnimationFrame(loop); }
 function loop(now){
   if(!R){return;}
-  let dt=(now-last)/1000; last=now; if(dt>0.05)dt=0.05;
+  let rawDt=(now-last)/1000; let dt=rawDt; last=now; if(dt>0.05)dt=0.05;
+  updatePerf(rawDt);
   if(R.hitstop>0){ R.hitstop-=dt; dt=0; }   // ヒットストップ=updateだけ止めて一撃の重みを出す(renderは継続)
   if(R.running && !R.paused){ update(dt); }
   render();
   if(R.running){ raf=requestAnimationFrame(loop); }
+}
+
+function updatePerf(rawDt){
+  if(!R||R.over||R.paused||!R.perf||R.perf.low)return;
+  if(rawDt>1/45) R.perf.under+=rawDt; else R.perf.under=0;
+  if(R.perf.under>=3){
+    R.perf.low=true;
+    if(!R.perf.toast){ R.perf.toast=true; G.onToast&&G.onToast('軽量化'); }
+  }
 }
 
 function update(dt){
@@ -755,6 +791,7 @@ function update(dt){
   const _earlyBoost = R.t < 60 ? Math.max(0, PACE.spawnEarlyFloor - _rateBase) : 0;
   const rate=Math.min(cap, (_rateBase + _earlyBoost)*PACE.spawnRateMul*(1+R.curse*0.6));
   R.spawnAcc+=dt*rate*(R.boss?0.6:1);
+  if(R.stage.noSpawn) R.spawnAcc=0; // 湧きなし幕(督邮折檻など)
   while(R.spawnAcc>=1){R.spawnAcc-=1; spawnEnemy();}
   // 精鋭
   while(R.stage.elites && !R.boss && R.eliteIdx<R.stage.elites.length && R.t>=R.stage.elites[R.eliteIdx].t){ spawnElite(R.stage.elites[R.eliteIdx]); R.eliteIdx++; }  // ボス出現中は精鋭を止める
@@ -770,7 +807,7 @@ function update(dt){
   // ★脅威スポーン: 消せない色付きビーム術者/貫通突撃。時間と難易度(遠隔量)で頻発=後半は油断すると死ぬ
   // 悲運(doom)シーンでは開幕から避けきれぬ遠隔弾幕を浴びせ「逃れられぬ最期」を体現する
   const _doom=R.scene&&R.scene.kind==='doom';
-  if(R.t>(_doom?1:16)){ R.threatT=(R.threatT==null?(_doom?rnd(.4,.9):rnd(3,5)):R.threatT)-dt;
+  if(!R.stage.noSpawn) if(R.t>(_doom?1:16)){ R.threatT=(R.threatT==null?(_doom?rnd(.4,.9):rnd(3,5)):R.threatT)-dt;
     if(R.threatT<=0){ const mn=R.t/60, dr=((R.diff&&R.diff.ranged)||1)*(1+R.curse)*(_doom?2.4:1);
       R.threatT=Math.max(_doom?0.5:1.4,(8.0-mn*0.9))/Math.max(.5,dr);
       const arch=(Math.random()<(_doom?0.82:0.62))?'beamer':'lancer', base=window.ENEMY_ARCH[arch];
@@ -851,7 +888,7 @@ function updateUltDashes(a,dt){
   if(a.seg<=0){ if(a.left<=0)return; startUltDash(a); }
   const p=R.player; a.seg-=dt; p.ifr=Math.max(p.ifr||0,0.24);
   p.x+=a.vx*dt; p.y+=a.vy*dt;
-  if(Math.random()<0.72)R.parts.push({x:p.x-rnd(-5,5),y:p.y-rnd(-5,5),vx:-a.vx*0.015+rnd(-30,30),vy:-a.vy*0.015+rnd(-30,30),life:0.22,col:'hsl('+a.hue+',85%,68%)',r:rnd(2,4)});
+  if(Math.random()<(lightMode()?0.36:0.72))R.parts.push({x:p.x-rnd(-5,5),y:p.y-rnd(-5,5),vx:-a.vx*0.015+rnd(-30,30),vy:-a.vy*0.015+rnd(-30,30),life:0.22,col:'hsl('+a.hue+',85%,68%)',r:rnd(2,4)});
   forEachNear(p.x,p.y,(a.width||40)+26,e=>{ if(e.dead||a.hit.has(e))return; if(dist2(p.x,p.y,e.x,e.y)<((a.width||40)+e.r)*((a.width||40)+e.r)){
     const d=Math.hypot(a.vx,a.vy)||1; applyDamage(e,a.dmg,{critRate:R.buffs.crit||0,knock:1.1,kx:a.vx/d,ky:a.vy/d}); e.hitFlash=0.12; bossCounter(e); a.hit.add(e); } });
 }
@@ -1012,6 +1049,7 @@ function hitPlayer(dmg){
   const sh=R.ult&&R.ult.shield;
   if(sh&&sh.t>0&&sh.absorb>0){ const block=Math.min(d,sh.absorb); sh.absorb-=block; d-=block; if(block>0){ R.flash=Math.max(R.flash,0.12); pushPart(R.player.x,R.player.y,'#9fffc2',4,110); } }
   if(d<=0)return;
+  if(R.stats&&!(R.scene&&R.scene.kind==='doom')) R.stats.hits++;
   R.player.hp-=d; R.flash=0.25; R.shake=0.3; window.SFX&&SFX.play('hurt');
   pushPart(R.player.x,R.player.y,'#ff5252',6,140);
   if(R.lord.sig&&R.lord.sig.ragePulse){  // 董卓「暴虐」: 被弾するたび周囲を吹き飛ばす衝撃波
@@ -1153,7 +1191,7 @@ function render(){
   if(!R)return;
   const bg=R.stage.bg;
   ctx.fillStyle=bg.ground; ctx.fillRect(0,0,CW,CH);
-  let sx=0,sy=0; if(R.shake>0){sx=rnd(-1,1)*R.shake*8;sy=rnd(-1,1)*R.shake*8;}
+  let sx=0,sy=0; if(R.shake>0&&opt('shake',true)){sx=rnd(-1,1)*R.shake*8;sy=rnd(-1,1)*R.shake*8;}
   const zoom=doomZoom();
   ctx.save(); ctx.translate(CW/2+sx, CH/2+sy); if(zoom!==1)ctx.scale(zoom,zoom); ctx.translate(-R.cam.x, -R.cam.y);
   drawGrid(bg);

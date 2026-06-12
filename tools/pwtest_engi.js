@@ -3,13 +3,42 @@ const { chromium } = require('playwright');
 const BASE='http://localhost:8771/';
 const SHOT='/tmp/engi_shots/';
 const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
+const path=require('path');
+const ROOT=path.resolve(__dirname,'..');
+const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png','.svg':'image/svg+xml'};
+
+async function serveStatic(page){
+  await page.route('**/*', async route=>{
+    const url=new URL(route.request().url());
+    let p=decodeURIComponent(url.pathname);
+    if(p==='/'||p==='') p='/index.html';
+    const fp=path.resolve(ROOT,'.'+p);
+    if(!fp.startsWith(ROOT)) return route.fulfill({status:403,body:'forbidden'});
+    try{
+      const body=fs.readFileSync(fp);
+      const ext=path.extname(fp);
+      return route.fulfill({status:200,contentType:MIME[ext]||'application/octet-stream',body});
+    }catch(e){
+      return route.fulfill({status:404,body:'not found'});
+    }
+  });
+}
 
 (async()=>{
-  const browser=await chromium.launch({channel:'chrome', args:['--use-gl=swiftshader']});
-  const page=await browser.newPage({viewport:{width:430,height:800},deviceScaleFactor:1});
+  let browser;
+  try{
+    browser=await chromium.launch({channel:'chrome', args:['--use-gl=swiftshader']});
+  }catch(e){
+    console.warn('WARN: Chrome channel launch failed, falling back to bundled chromium:', e.message.split('\n')[0]);
+    browser=await chromium.launch({args:['--use-gl=swiftshader']});
+  }
+  const context=await browser.newContext({viewport:{width:430,height:800},deviceScaleFactor:1,serviceWorkers:'block'});
+  const page=await context.newPage();
+  await serveStatic(page);
   const errors=[];
-  page.on('console',m=>{ if(m.type()==='error') errors.push('CONSOLE: '+m.text()); });
+  page.on('console',m=>{ if(m.type()==='error' && !/Failed to load resource/.test(m.text())) errors.push('CONSOLE: '+m.text()); });
   page.on('pageerror',e=>errors.push('PAGEERROR: '+e.message+' @ '+(e.stack||'').split('\n')[1]));
+  page.on('response',r=>{ if(r.status()>=400 && r.url().includes('localhost:8771')) errors.push('HTTP'+r.status()+' '+r.url()); }); // 外部CDNのヘッドレスUAノイズは除外
 
   await page.goto(BASE,{waitUntil:'networkidle'});
   await page.waitForSelector('#b-play',{timeout:8000});
@@ -40,10 +69,7 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
   console.log('PREP', JSON.stringify(prepChk));
   await page.screenshot({path:SHOT+'03_prep.png'});
 
-  // 2番目の主役を選ぶ(いれば)
-  const heroCards=await page.$$('.prep-hero');
-  if(heroCards.length>1) await heroCards[1].click();
-  // 難易度「ふつう」を確認(デフォルト選択済みのはず)
+  // キャラ選択は廃止(主役は物語が決める)
   await page.click('#b-start');
 
   // 章タイトルカード(自動1.6s/タップスキップ)→タイプライター(タップ2回)→戦闘 を根気よく進める
