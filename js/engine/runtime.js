@@ -1686,10 +1686,29 @@ function drawNova(n){
   ctx.globalAlpha=a*0.20; ctx.fillStyle=col; ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,TAU);ctx.fill(); ctx.globalAlpha=1;
 }
 function drawDash(d){
-  const ang=Math.atan2(d.vy,d.vx), spr=window.Sprites.proj('spear',d.hue,ang,0), size=Math.max(34,d.w*2.4), h=size*spr.height/spr.width;
-  ctx.globalAlpha=0.85; ctx.drawImage(spr,d.x-size/2,d.y-h/2,size,h);
-  ctx.globalAlpha=0.35; ctx.fillStyle='hsl('+d.hue+',85%,68%)';
-  for(let i=1;i<6;i++){ ctx.fillRect(d.x-Math.cos(ang)*i*12-3,d.y-Math.sin(ang)*i*12-3,6-i*0.5,6-i*0.5); }
+  const ang=Math.atan2(d.vy,d.vx);
+  const flip=d.vx<0;
+  // kind='dash'(charge系突進): mobTinted('cavalry')騎兵スプライトを優先使用
+  const cavSpr=window.Sprites.mobTinted&&window.Sprites.mobTinted('cavalry', d.hue);
+  if(cavSpr){
+    const size=Math.max(38,d.w*2.6);
+    const sh=size*cavSpr.naturalHeight/cavSpr.naturalWidth;
+    ctx.globalAlpha=0.9;
+    ctx.save(); ctx.translate(d.x,d.y); if(flip)ctx.scale(-1,1);
+    ctx.drawImage(cavSpr,-size/2,-sh/2,size,sh);
+    ctx.restore();
+    // 残像(1騎後続: 半透明で後方に)
+    ctx.globalAlpha=0.38;
+    ctx.save(); ctx.translate(d.x-Math.cos(ang)*18,d.y-Math.sin(ang)*18); if(flip)ctx.scale(-1,1);
+    ctx.drawImage(cavSpr,-size*0.4,-sh*0.4,size*0.8,sh*0.8);
+    ctx.restore();
+  } else {
+    const spr=window.Sprites.proj('spear',d.hue,ang,0), size=Math.max(34,d.w*2.4), h=size*spr.height/spr.width;
+    ctx.globalAlpha=0.85; ctx.drawImage(spr,d.x-size/2,d.y-h/2,size,h);
+  }
+  // 土煙(蹄元パーティクル)
+  ctx.globalAlpha=0.35; ctx.fillStyle='hsl('+d.hue+',60%,58%)';
+  for(let i=1;i<5;i++){ const sz=Math.max(1.5,5-i*0.8); ctx.fillRect(d.x-Math.cos(ang)*i*14-sz/2,d.y-Math.sin(ang)*i*14-sz/2,sz,sz); }
   ctx.globalAlpha=1;
 }
 function drawZone(z){
@@ -1712,6 +1731,28 @@ function drawZone(z){
   ctx.globalAlpha=0.48*a; ctx.fillStyle='hsl('+z.hue+',90%,65%)';
   for(let i=0;i<cnt;i++){ const ang=i*TAU/cnt, rr=z.r+((i&1)?2:-3), sz=(i%4===0)?5:3; ctx.fillRect(z.x+Math.cos(ang)*rr-sz/2,z.y+Math.sin(ang)*rr-sz/2,sz,sz); }
   if(z.hue<40){ for(let i=0;i<10;i++){ const ang=(i*0.61+R.t*1.7)%TAU, rr=z.r*(0.15+((i*17)%70)/100); const spr=window.Sprites.proj('fire',z.hue,0,(i+R.t*8)|0); const sz=12; ctx.drawImage(spr,z.x+Math.cos(ang)*rr-sz/2,z.y+Math.sin(ang)*rr-sz/2,sz,sz); } }
+  // 軍旗(zone中心): warFlagがあれば旗竿を立てて揺らす
+  if(window.Sprites.warFlag){
+    const lord=R&&R.lord;
+    const hue=z.hue;
+    // 勢力からkanji決定(fire=陣/軍旗に勢力色が乗る)
+    let kanji='旗';
+    if(lord){
+      if(lord.faction===0) kanji='劉';
+      else if(lord.faction===1) kanji='曹';
+      else if(lord.faction===2) kanji='孫';
+      else kanji='漢';
+    } else if(hue>=35&&hue<=65) kanji='黄';
+    const flag=window.Sprites.warFlag(hue,kanji);
+    const fsize=22; const fw=fsize*flag.width/flag.height;
+    const sway=Math.sin(R.t*2.0+z.x*0.01)*0.14;
+    ctx.save();
+    ctx.translate(z.x,z.y-fsize*0.4);
+    ctx.rotate(sway);
+    ctx.globalAlpha=0.82*a;
+    ctx.drawImage(flag,-fw*0.08,-fsize*0.5,fw,fsize);
+    ctx.restore();
+  }
   ctx.globalAlpha=1; }
 
 function drawUltEffects(){
@@ -1737,10 +1778,40 @@ function drawUltEffects(){
         const spr=window.Sprites.proj('fire',18,0,(R.t*10+i)|0), sz=18+(i%4)*3; ctx.drawImage(spr,x-sz/2,y-sz/2,sz,sz); }
       ctx.globalAlpha=1;
     } else if(a.type==='raid'){
+      // 騎馬隊演出: mobTinted('cavalry', hue) を使い2-3騎縦隊で駆け抜ける
+      // 各riderは主騎(pos)の前後2pxずらした2騎を縦隊で描く
       for(const r of a.riders){
-        const spr=window.Sprites.hero(a.gen,((R.t*9+r.phase)|0)&1,false), size=46, h=size*spr.height/spr.width;
-        ctx.save(); if(r.vx<0){ ctx.translate(r.x,r.y); ctx.scale(-1,1); ctx.drawImage(spr,-size/2,-h/2,size,h); } else ctx.drawImage(spr,r.x-size/2,r.y-h/2,size,h); ctx.restore();
-        ctx.globalAlpha=0.38; ctx.fillStyle='hsl('+a.hue+',85%,70%)'; ctx.fillRect(r.x-Math.sign(r.vx)*28,r.y+13,34,4); ctx.globalAlpha=1;
+        const frame=((R.t*9+r.phase)|0)&1;
+        const flip=r.vx<0;
+        // mobTintedが使えれば騎兵AI画像、なければhero()フォールバック
+        const cavSpr=window.Sprites.mobTinted('cavalry', a.hue);
+        const drawRider=(rx,ry,sz)=>{
+          if(cavSpr){
+            const sh=sz*cavSpr.naturalHeight/cavSpr.naturalWidth;
+            ctx.save(); ctx.translate(rx,ry); if(flip)ctx.scale(-1,1);
+            ctx.drawImage(cavSpr,-sz/2,-sh/2,sz,sh);
+            ctx.restore();
+          } else {
+            const hs=window.Sprites.hero(a.gen,frame,false);
+            const sh=sz*hs.height/hs.width;
+            ctx.save(); if(flip){ctx.translate(rx,ry);ctx.scale(-1,1);ctx.drawImage(hs,-sz/2,-sh/2,sz,sh);}
+            else ctx.drawImage(hs,rx-sz/2,ry-sh/2,sz,sh);
+            ctx.restore();
+          }
+        };
+        // 主騎
+        drawRider(r.x, r.y, 46);
+        // 後続騎(縦隊: 進行方向逆に16px×0.82サイズ)
+        const backX=r.x-Math.sign(r.vx)*16;
+        ctx.globalAlpha=0.72;
+        drawRider(backX, r.y+2, 38);
+        ctx.globalAlpha=1;
+        // 土煙パーティクル(蹄元から横に飛ぶ小粒)
+        if(Math.random()<0.55){
+          R.parts.push({x:r.x-Math.sign(r.vx)*4+rnd(-6,6),y:r.y+18+rnd(-3,3),
+            vx:-Math.sign(r.vx)*rnd(20,55)+rnd(-15,15),vy:rnd(-30,10),
+            life:rnd(0.18,0.38),col:'rgba(180,140,80,0.55)',r:rnd(2,4)});
+        }
       }
     }
   }

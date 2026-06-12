@@ -152,8 +152,18 @@ function updateField(w,E,dt,R){
   w._field={r:E.area,hue:E.hue};
 }
 
+// 勢力hue → 軍旗漢字1字
+function hueToKanji(hue, faction){
+  if(faction===0) return '劉';
+  if(faction===1) return '曹';
+  if(faction===2) return '孫';
+  // 黄巾判定: hue≈40-55
+  if(typeof hue==='number' && hue>=35 && hue<=65) return '黄';
+  return '漢';
+}
+
 function draw(ctx,R){
-  // 陣/オーラ(下地)
+  // 陣/オーラ(下地) + 軍旗(中心)
   for(const w of R.weapons){ if(w._field){ const p=R.player,f=w._field;
     const pulse=0.5+0.5*Math.sin(R.t*5);
     ctx.globalAlpha=0.08+0.04*pulse; ctx.fillStyle='hsl('+f.hue+',70%,42%)'; ctx.beginPath();ctx.arc(p.x,p.y,f.r,0,TAU);ctx.fill();
@@ -161,8 +171,24 @@ function draw(ctx,R){
     const n=44;
     for(let i=0;i<n;i++){ const a=i*TAU/n+R.t*0.25, rr=f.r+((i&1)?3:-2), sz=(i%3===0)?5:3;
       ctx.fillRect(p.x+Math.cos(a)*rr-sz/2,p.y+Math.sin(a)*rr-sz/2,sz,sz); }
-    ctx.globalAlpha=1; w._field=null; } }
-  // 旋回刃
+    ctx.globalAlpha=1;
+    // 軍旗: zone中心でゆっくり揺れる(sinで旗竿角度振動)
+    if(window.Sprites.warFlag){
+      const kanji=hueToKanji(f.hue, R.lord&&R.lord.faction);
+      const flag=window.Sprites.warFlag(f.hue, kanji);
+      const fsize=28; // 旗の表示高さ
+      const fw=fsize*flag.width/flag.height;
+      const sway=Math.sin(R.t*1.8)*0.12; // なびき角度
+      ctx.save();
+      ctx.translate(p.x,p.y-fsize*0.5);
+      ctx.rotate(sway);
+      ctx.globalAlpha=0.88;
+      ctx.drawImage(flag,-fw*0.1,-fsize*0.5,fw,fsize);
+      ctx.restore();
+      ctx.globalAlpha=1;
+    }
+    w._field=null; } }
+  // 旋回刃 + 中心軍旗
   for(const w of R.weapons){ if(w._orbit){ const p=R.player,o=w._orbit;
     for(let i=0;i<o.n;i++){ const a=o.ang+i*TAU/o.n, bx=p.x+Math.cos(a)*o.rad, by=p.y+Math.sin(a)*o.rad;
       const spr=window.Sprites.proj(o.wt==='halberd'?'halberd':'blade',o.hue,a+Math.PI/2,((R.t*10)|0)&1);
@@ -170,6 +196,21 @@ function draw(ctx,R){
       ctx.drawImage(spr,bx-size/2,by-h/2,size,h);
       ctx.globalAlpha=0.35; ctx.fillStyle='hsl('+o.hue+',85%,70%)';
       ctx.fillRect(bx-Math.cos(a)*9-2,by-Math.sin(a)*9-2,4,4); ctx.globalAlpha=1; }
+    // orbit中心に軍旗(ゆっくり回転)
+    if(window.Sprites.warFlag){
+      const kanji=hueToKanji(o.hue, R.lord&&R.lord.faction);
+      const flag=window.Sprites.warFlag(o.hue, kanji);
+      const fsize=24;
+      const fw=fsize*flag.width/flag.height;
+      const rot=R.t*0.55; // ゆっくり回転
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(rot);
+      ctx.globalAlpha=0.80;
+      ctx.drawImage(flag,-fw*0.1,-fsize*0.5,fw,fsize);
+      ctx.restore();
+      ctx.globalAlpha=1;
+    }
     w._orbit=null; } }
 }
 

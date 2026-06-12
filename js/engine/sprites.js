@@ -439,9 +439,102 @@ window.Sprites = (function(){
     cache[key]=c; return c;
   }
 
+  // ── FXローダ(assets/fx/index.json → 画像キャッシュ) ────────────
+  // index.json が無ければ空セット扱い。ファイルなし＝フォールバックで現状維持。
+  const FX_IMGS={};
+  let FX_LIST=null;
+  try{ fetch('assets/fx/index.json').then(r=>r.json()).then(a=>{
+    FX_LIST=new Set(a);
+    // index.jsonに列挙された全ファイルを先読み(遅延でも可だが体感を良くするため)
+    for(const name of a){
+      if(!(name in FX_IMGS)){
+        FX_IMGS[name]=null;
+        const im=new Image();
+        im.onload=()=>{ FX_IMGS[name]=im; };
+        im.onerror=()=>{ FX_IMGS[name]=false; };
+        im.src='assets/fx/'+name;
+      }
+    }
+  }).catch(()=>{ FX_LIST=new Set(); }); }catch(e){ FX_LIST=new Set(); }
+
+  // assets/fx/<filename> を取得。ロード済みかつHTMLImageElementならそれを返す。それ以外null。
+  function fxImg(filename){
+    if(!FX_LIST||!FX_LIST.has(filename)) return null;
+    const v=FX_IMGS[filename];
+    return (v&&v instanceof HTMLImageElement)?v:null;
+  }
+
+  // 16方向キャッシュを外部から強制生成するヘルパ(FX画像が後から届いた場合に再焼き)
+  function buildProjCache(type, hue, f){
+    // fxImgがある場合はそちらをベースに16方向焼く
+    const fxSrc=fxImg('proj_'+type+'.png');
+    const src=fxSrc ? (()=>{
+      // fxSrcをbaseキャンバスに等サイズで描いてキャッシュキーに乗せる
+      const bk='proj_base_'+type+'_'+hue+'_'+f;
+      if(!cache[bk]){
+        const {c:bc,x:bx}=mk(fxSrc.naturalWidth||fxSrc.width,fxSrc.naturalHeight||fxSrc.height);
+        bx.drawImage(fxSrc,0,0); cache[bk]=bc;
+      }
+      return cache[bk];
+    })() : baseProj(type,hue,f);
+    const arr=[];
+    for(let i=0;i<16;i++)arr[i]=rotated(src,i);
+    return arr;
+  }
+
+  // ── 軍旗 warFlag(hue, kanji) ───────────────────────────────────
+  // 旗竿+なびく布(コード描画)＋漢字1字をDotGothic16でcanvas刻印してキャッシュ。
+  // 勢力→漢字: 0蜀=劉 / 1魏=曹 / 2呉=孫 / 3群=漢 / 黄巾(hue≈40-55)=黄
+  // 呼び出し側: size=旗全体の高さ(px)でblitする。キャッシュキー=hue+kanji。
+  const FLAG_CACHE={};
+  function warFlag(hue, kanji){
+    const k='wf_'+(hue|0)+'_'+(kanji||'旗');
+    if(FLAG_CACHE[k]) return FLAG_CACHE[k];
+    const FW=16, FH=24; // 旗エリア(竿込み)
+    const {c,x}=mk(FW,FH);
+    // 竿(左端の1px縦棒)
+    x.fillStyle='#6a4a22';
+    x.fillRect(0,0,2,FH);
+    x.fillStyle='#a07040';
+    x.fillRect(0,0,1,FH);
+    // 布(右8px × 上半分12px。なびき=右端を2px下げた平行四辺形)
+    const cloth=hsl(hue,74,44), clothL=hsl(hue,78,62), clothD=hsl(hue,70,28);
+    // 台形ポリゴン(竿につく辺=垂直、遠辺=やや下がる)
+    x.fillStyle=cloth;
+    x.beginPath(); x.moveTo(2,1); x.lineTo(FW-1,2); x.lineTo(FW-1,12); x.lineTo(2,11); x.closePath(); x.fill();
+    // ハイライト上辺
+    x.fillStyle=clothL;
+    x.fillRect(2,1,FW-3,2);
+    // 影(下辺1px)
+    x.fillStyle=clothD;
+    x.fillRect(2,10,FW-3,1);
+    // 漢字1字をキャンバス中央に描く
+    const kan=kanji||'旗';
+    x.imageSmoothingEnabled=false;
+    // フォント: DotGothic16を試み、フォールバックはmonospace
+    x.font='bold 8px "DotGothic16", ui-monospace, monospace';
+    x.textAlign='center'; x.textBaseline='middle';
+    // 縁取り(黒)
+    x.lineWidth=2; x.strokeStyle='rgba(0,0,0,0.82)';
+    x.strokeText(kan, 2+(FW-2)*0.5, 6);
+    // 本文(金)
+    x.fillStyle=GOLD;
+    x.fillText(kan, 2+(FW-2)*0.5, 6);
+    x.textAlign='left'; x.textBaseline='alphabetic';
+    FLAG_CACHE[k]=c;
+    return c;
+  }
+
   function baseProj(type, hue, frame){
     const key='proj_base_'+type+'_'+hue+'_'+((frame||0)&1);
     if(cache[key]) return cache[key];
+    // FX画像が届いていれば優先使用(新規typeも含む)
+    const fxSrc=fxImg('proj_'+type+'.png');
+    if(fxSrc){
+      const {c:bc,x:bx}=mk(fxSrc.naturalWidth||fxSrc.width,fxSrc.naturalHeight||fxSrc.height);
+      bx.drawImage(fxSrc,0,0);
+      cache[key]=bc; return bc;
+    }
     let W=14,H=14;
     if(type==='arrow'){W=18;H=8;}
     if(type==='spear'){W=22;H=8;}
@@ -450,6 +543,7 @@ window.Sprites = (function(){
     if(type==='fire'){W=12;H=12;}
     if(type==='rock'){W=10;H=10;}
     if(type==='blade'){W=14;H=14;}
+    // 新規type(arrow_enemy/bolt/firearrow/orb/talisman/meteor等): デフォルトblade扱い
     const {c,x}=mk(W,H), cy=Math.floor(H/2), h=typeof hue==='number'?hue:40, f=(frame||0)&1;
     if(type==='arrow'){
       const ally=h>=42&&h<=75, feather=ally?'#ffd44f':'#dc3f32', shaft=ally?'#c9973a':'#b77735';
@@ -479,6 +573,13 @@ window.Sprites = (function(){
       rect(x,4,2+a,2,7,'#ff6a22'); rect(x,3,6,5,3,'#ff8f2a'); rect(x,5,5,2,3,'#ffd55a'); px(x,6,3+a,'#fff2a8');
     } else if(type==='rock'){
       rect(x,2,2,6,6,OUT); rect(x,3,3,4,4,hsl(h,15,45)); px(x,4,2,hsl(h,18,65)); px(x,7,5,hsl(h,18,28));
+    } else {
+      // 未知typeはbladeと同じ扱い(新規FX type用フォールバック)
+      const col=hsl(h,78,62), hi=hsl(h,80,78);
+      rect(x,2,2,10,10,OUT);
+      if(f){ px(x,4,1,hi); rect(x,5,2,4,2,col); rect(x,8,4,2,5,col); px(x,9,10,hi); }
+      else { rect(x,2,6,10,2,col); rect(x,6,2,2,10,col); px(x,10,3,hi); px(x,3,10,hi); }
+      px(x,6,6,'#ffffff');
     }
     cache[key]=c; return c;
   }
@@ -491,9 +592,8 @@ window.Sprites = (function(){
     const dir=((Math.round((((angle||0)%(Math.PI*2)+Math.PI*2)%(Math.PI*2))/(Math.PI*2)*16))%16);
     const f=(frame||0)&1, key='proj_set_'+type+'_'+hue+'_'+f;
     if(!cache[key]){
-      const src=baseProj(type,hue,f), arr=[];
-      for(let i=0;i<16;i++)arr[i]=rotated(src,i);
-      cache[key]=arr;
+      // FX画像がある場合はbuildProjCacheを使いfxImg優先16方向焼き
+      cache[key]=buildProjCache(type,hue,f);
     }
     return cache[key][dir];
   }
@@ -763,6 +863,7 @@ window.Sprites = (function(){
     proj, projType, weaponTip, floorTile,
     face,
     unitImg, mobImg, mobTinted, shadowEllipse,
-    classOf, hash
+    classOf, hash,
+    warFlag, fxImg
   };
 })();

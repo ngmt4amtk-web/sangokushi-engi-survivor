@@ -130,7 +130,19 @@ function uiToast(msg){
 }
 
 // ── 武器SVGアイコン要素 ─────────────────────
-function wiconEl(weaponKey,cls){ const d=el('div','wsvg'+(cls?' '+cls:'')); d.innerHTML=window.weaponIconSvg(weaponKey); return d; }
+// assets/fx/icon_<weaponKey>.png があれば img で差し替え(フォールバック: SVG維持)
+function wiconEl(weaponKey,cls){
+  const d=el('div','wsvg'+(cls?' '+cls:''));
+  const fxSrc=window.Sprites&&window.Sprites.fxImg&&window.Sprites.fxImg('icon_'+weaponKey+'.png');
+  if(fxSrc){
+    const im=document.createElement('img');
+    im.src=fxSrc.src; im.style.cssText='width:100%;height:100%;object-fit:contain;display:block;';
+    d.appendChild(im);
+  } else {
+    d.innerHTML=window.weaponIconSvg(weaponKey);
+  }
+  return d;
+}
 function avatar(g,px){const c=document.createElement('canvas');c.width=px;c.height=px;const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(window.Sprites.general(g),0,0,px,px);return c;}
 // 顔(立ち絵)＋武器種の小バッジ。図鑑/選択/ガチャの主役割アイコンに使う
 function faceEl(g,px,cls){ const w=el('div','face'+(cls?' '+cls:'')); const cv=avatar(g,px); cv.className='fav'; w.appendChild(cv);
@@ -208,6 +220,27 @@ function renderTitle(){
     <div class="tl-progress">${experienceText()}</div>
     <button class="btn tl-reset" id="b-reset">セーブをリセット</button>
   `;
+  // タイトルロゴ: assets/fx/logo.png があれば .tl-logo を img に差し替え(フォールバック: テキスト維持)
+  (function applyLogoImg(){
+    const logoFx=window.Sprites&&window.Sprites.fxImg&&window.Sprites.fxImg('logo.png');
+    if(logoFx){
+      const logoEl=c.querySelector('.tl-logo');
+      if(logoEl){
+        const im=document.createElement('img');
+        im.src=logoFx.src; im.alt='三国志演義survivor';
+        im.className='tl-logo tl-logo--img';
+        im.style.cssText='max-width:min(320px,85vw);height:auto;display:block;';
+        logoEl.parentNode.replaceChild(im,logoEl);
+      }
+    } else if(window.Sprites&&window.Sprites.fxImg){
+      // FX_LISTがまだnullの場合(fetch中): 50ms後に再試行
+      const logoEl=c.querySelector('.tl-logo');
+      if(logoEl&&!logoEl._logoTried){
+        logoEl._logoTried=true;
+        setTimeout(applyLogoImg,50);
+      }
+    }
+  })();
   $('#b-play').onclick=()=>{
     const next=findNextStage();
     selStage=next; selProto=null; selDiff=window.Save.get().difficulty||'normal';
