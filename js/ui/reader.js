@@ -75,6 +75,19 @@
       </div>
       <div id="rdr-tap-left"  aria-label="前のページ"></div>
       <div id="rdr-tap-right" aria-label="次のページ"></div>
+      <div id="rdr-ctrl">
+        <button id="rdr-btn-first" aria-label="最初へ">⏮<span>最初へ</span></button>
+        <button id="rdr-btn-prev"  aria-label="前へ">◀<span>前へ</span></button>
+        <button id="rdr-btn-next"  aria-label="次へ"><span>次へ</span>▶</button>
+        <button id="rdr-btn-log"   aria-label="ログ">📜<span>ログ</span></button>
+      </div>
+      <div id="rdr-log">
+        <div id="rdr-log-header">
+          <span id="rdr-log-title">ログ</span>
+          <button id="rdr-log-close" aria-label="ログを閉じる">✕</button>
+        </div>
+        <div id="rdr-log-body"></div>
+      </div>
     `;
     document.body.appendChild(el);
     overlay = el;
@@ -82,6 +95,15 @@
     document.getElementById('rdr-close').addEventListener('click', close);
     document.getElementById('rdr-tap-right').addEventListener('click', nextPage);
     document.getElementById('rdr-tap-left').addEventListener('click', prevPage);
+
+    // コントロールバー
+    document.getElementById('rdr-btn-first').addEventListener('click', goFirst);
+    document.getElementById('rdr-btn-prev').addEventListener('click', prevPage);
+    document.getElementById('rdr-btn-next').addEventListener('click', nextPage);
+    document.getElementById('rdr-btn-log').addEventListener('click', openLog);
+
+    // ログオーバーレイ
+    document.getElementById('rdr-log-close').addEventListener('click', closeLog);
   }
 
   // ── ページ描画 ────────────────────────────────────
@@ -182,6 +204,61 @@
     }
   }
 
+  // ── 最初へジャンプ ──────────────────────────────
+  function goFirst(){
+    pageIdx = 0;
+    savePos(curNo, 0);
+    renderPage();
+  }
+
+  // ── ログ開く ─────────────────────────────────────
+  function openLog(){
+    const logEl = document.getElementById('rdr-log');
+    const bodyEl = document.getElementById('rdr-log-body');
+    const titleEl = document.getElementById('rdr-log-title');
+    if(!logEl || !bodyEl) return;
+
+    // ヘッダタイトル更新
+    const chTitle = (document.getElementById('rdr-title')||{}).textContent || ('第'+curNo+'回');
+    if(titleEl) titleEl.textContent = 'ログ ― ' + chTitle;
+
+    // エントリ生成(0..pageIdx)
+    let html = '';
+    for(let i = 0; i <= pageIdx; i++){
+      const raw = pages[i] || '';
+      const isScene = raw.startsWith('◆ ');
+      const pgLabel = `<span class="rdr-log-pgno">${i+1}</span>`;
+      if(isScene){
+        html += `<div class="rdr-log-entry rdr-log-scene" data-pg="${i}">${pgLabel}${esc(raw.slice(2))}</div>`;
+      } else {
+        html += `<div class="rdr-log-entry" data-pg="${i}">${pgLabel}${esc(raw)}</div>`;
+      }
+    }
+    bodyEl.innerHTML = html;
+
+    // エントリタップ→ジャンプ
+    bodyEl.querySelectorAll('.rdr-log-entry').forEach(entry => {
+      entry.addEventListener('click', () => {
+        const pg = parseInt(entry.dataset.pg, 10);
+        if(!isNaN(pg) && pg >= 0 && pg < pages.length){
+          pageIdx = pg;
+          renderPage();
+          closeLog();
+        }
+      });
+    });
+
+    logEl.classList.add('show');
+    // 最下部へスクロール(現在ページ=末尾)
+    requestAnimationFrame(() => { bodyEl.scrollTop = bodyEl.scrollHeight; });
+  }
+
+  // ── ログ閉じる ───────────────────────────────────
+  function closeLog(){
+    const logEl = document.getElementById('rdr-log');
+    if(logEl) logEl.classList.remove('show');
+  }
+
   // ── 読了処理 ─────────────────────────────────────
   function onReadComplete(){
     markDone(curNo);
@@ -239,6 +316,7 @@
     if(titleEl) titleEl.textContent = data.title || ('第' + no + '回');
 
     // 表示
+    closeLog();
     overlay.classList.add('show');
     renderPage();
   }

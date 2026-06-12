@@ -897,3 +897,130 @@ h2.sec::before{content:"";position:absolute;left:0;top:1px;bottom:1px;width:4px;
 /* リーダー本文を戦闘前後ナレーションと同じく画面中央に */
 #rdr-body{justify-content:center;}
 #rdr-page{flex:0 1 auto;display:flex;flex-direction:column;justify-content:center;}
+
+/* ════════ リーダー: コントロールバー + ログ ════════ */
+
+/* タップゾーン: バーと重ならないよう bottom を 52px に調整 */
+#rdr-tap-left,#rdr-tap-right{bottom:52px;}
+
+/* ▼ 矢印: バーの直上(bottom padding で浮かす) */
+#rdr-body{padding-bottom:8px;}
+
+/* コントロールバー */
+#rdr-ctrl{
+  position:absolute;bottom:0;left:0;right:0;
+  height:52px;
+  display:flex;align-items:center;justify-content:space-around;
+  background:rgba(11,9,7,.88);
+  border-top:1px solid rgba(217,178,90,.22);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  z-index:93;
+  gap:0;
+}
+#rdr-ctrl button{
+  flex:1;height:52px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;
+  background:none;border:none;
+  color:var(--gold2);
+  font-size:16px;
+  font-family:var(--mincho);
+  cursor:pointer;
+  padding:0;
+  min-width:44px;
+  transition:background .1s;
+  -webkit-tap-highlight-color:rgba(217,178,90,.15);
+}
+#rdr-ctrl button span{
+  font-size:10px;
+  color:var(--txt2);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  letter-spacing:.02em;
+}
+#rdr-ctrl button:hover{background:rgba(217,178,90,.08);}
+#rdr-ctrl button:active{background:rgba(217,178,90,.18);}
+/* 区切り線 */
+#rdr-ctrl button + button{border-left:1px solid rgba(255,255,255,.07);}
+
+/* ログオーバーレイ */
+#rdr-log{
+  display:none;
+  position:absolute;inset:0;
+  z-index:95;
+  background:rgba(5,3,8,.95);
+  flex-direction:column;
+  overflow:hidden;
+}
+#rdr-log.show{display:flex;}
+
+#rdr-log-header{
+  display:flex;align-items:center;
+  padding:12px 16px 10px;
+  border-bottom:1px solid rgba(217,178,90,.22);
+  flex:0 0 auto;
+  gap:8px;
+}
+#rdr-log-title{
+  flex:1;
+  font-family:var(--mincho);
+  font-size:14px;
+  color:var(--gold2);
+  letter-spacing:.05em;
+}
+#rdr-log-close{
+  background:none;border:none;
+  color:var(--txt2);font-size:18px;line-height:1;
+  padding:4px 8px;cursor:pointer;
+}
+#rdr-log-close:hover{color:var(--txt);}
+
+#rdr-log-body{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:12px 16px 24px;
+  display:flex;flex-direction:column;gap:2px;
+}
+
+/* ログエントリ */
+.rdr-log-entry{
+  padding:10px 12px;
+  border-radius:8px;
+  font-family:'DotGothic16',var(--mincho),monospace;
+  font-size:13px;
+  color:var(--txt2);
+  line-height:1.75;
+  cursor:pointer;
+  border:1px solid transparent;
+  transition:background .1s,border-color .1s;
+  white-space:pre-wrap;
+  word-break:break-all;
+}
+.rdr-log-entry:hover{
+  background:rgba(217,178,90,.07);
+  border-color:rgba(217,178,90,.18);
+}
+.rdr-log-entry:active{background:rgba(217,178,90,.15);}
+
+/* ◆ 見出しエントリ = 金色センタリング */
+.rdr-log-scene{
+  text-align:center;
+  font-family:var(--mincho);
+  font-size:13px;
+  color:var(--gold);
+  letter-spacing:.1em;
+}
+
+/* ページ番号バッジ */
+.rdr-log-pgno{
+  display:inline-block;
+  font-size:10px;
+  color:rgba(179,164,134,.55);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  margin-right:8px;
+  vertical-align:middle;
+  white-space:nowrap;
+}
+/* ログ背景は完全不透明に(下層ページの透け防止) */
+#rdr-log{background:#0a0807;}

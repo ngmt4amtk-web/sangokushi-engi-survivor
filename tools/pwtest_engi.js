@@ -188,6 +188,42 @@ const fs=require('fs'); fs.mkdirSync(SHOT,{recursive:true});
       await page.waitForTimeout(180);
       await page.screenshot({path:SHOT+'12_reader_page2.png'});
 
+      // ── コントロールバー拡張テスト ──────────────────────────
+
+      // 「次へ」ボタンで 1 ページ進む
+      await page.click('#rdr-btn-next');
+      await page.waitForTimeout(200);
+      const afterNext=await page.evaluate(()=>{
+        const m=document.getElementById('rdr-pager').textContent.match(/(\d+)\s*\/\s*(\d+)/);
+        return m?{cur:+m[1],total:+m[2]}:null;
+      });
+      console.log('READER after btn-next:', JSON.stringify(afterNext));
+      if(!afterNext||afterNext.cur<2) errors.push('READER: btn-next did not advance page');
+
+      // ログを開く
+      await page.click('#rdr-btn-log');
+      await page.waitForTimeout(200);
+      const logOpen=await page.evaluate(()=>!!document.getElementById('rdr-log').classList.contains('show'));
+      if(!logOpen) errors.push('READER: log overlay did not open');
+
+      // エントリ数が 2 以上あること
+      const entryCount=await page.evaluate(()=>document.querySelectorAll('.rdr-log-entry').length);
+      console.log('READER log entries:', entryCount);
+      if(entryCount<2) errors.push('READER: log entries < 2 (got '+entryCount+')');
+      await page.screenshot({path:SHOT+'13_reader_log.png'});
+
+      // 先頭エントリをタップ → ページ 1/N に戻ること
+      await page.click('.rdr-log-entry:first-child');
+      await page.waitForTimeout(200);
+      const afterJump=await page.evaluate(()=>{
+        const logVisible=document.getElementById('rdr-log').classList.contains('show');
+        const m=document.getElementById('rdr-pager').textContent.match(/(\d+)\s*\/\s*(\d+)/);
+        return {logVisible, cur:m?+m[1]:null};
+      });
+      console.log('READER after log jump:', JSON.stringify(afterJump));
+      if(afterJump.logVisible) errors.push('READER: log still visible after entry tap');
+      if(afterJump.cur!==1) errors.push('READER: expected page 1 after jump, got '+afterJump.cur);
+
       // ✕ で閉じる
       await page.click('#rdr-close');
       await page.waitForTimeout(200);
